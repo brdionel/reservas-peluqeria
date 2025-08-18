@@ -17,7 +17,7 @@ if (process.env.GOOGLE_CREDENTIALS) {
 } else {
   // Para desarrollo local
   auth = new google.auth.GoogleAuth({
-    keyFile: path.join(__dirname, '../../credenciales/appturnos-service-account.json'),
+    keyFile: path.join(__dirname, '../../credenciales/google-calendar-credentials.json'),
     scopes: ["https://www.googleapis.com/auth/calendar"],
   });
 }
