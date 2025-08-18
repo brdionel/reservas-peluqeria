@@ -3,7 +3,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
-import initializeProductionDatabase from '../scripts/initialize-production.js';
 
 // Importar rutas
 import bookingRoutes from './routes/bookings.js';
