@@ -12,6 +12,7 @@ import slotRoutes from './routes/slots.js';
 import authRoutes from './routes/auth.js';
 import activityRoutes from './routes/activity.js';
 import syncRoutes from './routes/sync.js';
+import initRoutes from './routes/init.js';
 
 // Configuración
 dotenv.config();
@@ -48,6 +49,7 @@ app.use('/api/config', configRoutes);
 app.use('/api/slots', slotRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/sync', syncRoutes);
+app.use('/api/init', initRoutes);
 
 // Ruta de salud
 app.get('/api/health', (req, res) => {
