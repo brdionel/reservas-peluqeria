@@ -26,8 +26,31 @@ export const prisma = new PrismaClient();
 app.use(helmet());
 
 // CORS
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://unique-lolly-3c4f22.netlify.app',
+  'https://*.netlify.app'
+];
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: function (origin, callback) {
+    // Permitir requests sin origin (como mobile apps o Postman)
+    if (!origin) return callback(null, true);
+    
+    // Verificar si el origin está en la lista de permitidos
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      if (allowedOrigin.includes('*')) {
+        return origin.includes(allowedOrigin.replace('*', ''));
+      }
+      return origin === allowedOrigin;
+    });
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 
