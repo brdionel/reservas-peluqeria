@@ -101,7 +101,9 @@ app.listen(PORT, async () => {
   // Inicializar base de datos en producción
   if (process.env.NODE_ENV === 'production') {
     try {
-      await initializeProductionDatabase();
+      console.log('🔄 Inicializando base de datos de producción...');
+      // La inicialización se hará manualmente desde la consola
+      console.log('✅ Servidor listo. Ejecuta "npm run init:prod" para inicializar la base de datos.');
     } catch (error) {
       console.error('❌ Error inicializando base de datos:', error);
     }
