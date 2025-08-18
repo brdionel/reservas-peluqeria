@@ -1,0 +1,125 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id            Int       @id @default(autoincrement())
+  username      String    @unique
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  firstName     String    @map("first_name")
+  lastName      String    @map("last_name")
+  isActive      Boolean   @default(true) @map("is_active")
+  role          String    @default("admin") // admin, super_admin
+  lastLogin     DateTime? @map("last_login")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  
+  // Relaciones
+  bookings      Booking[] // Para tracking de quién creó/modificó reservas
+  salonConfigs  SalonConfig[] // Para tracking de cambios en configuración
+  workingHours  WorkingHours[] // Para tracking de quién configuró los horarios
+  activityLogs  AdminActivityLog[] // Logs de actividades del admin
+  
+  @@map("admins")
+}
+
+model Booking {
+  id            Int           @id @default(autoincrement())
+  date          String        // YYYY-MM-DD format
+  time          String        // HH:MM format
+  status        String        @default("CONFIRMED")
+  service       String?
+  notes         String?
+  googleEventId String?       @map("google_event_id") // ID del evento en Google Calendar
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  
+  // Relaciones
+  clientId      Int           @map("client_id")
+  client        Client        @relation(fields: [clientId], references: [id])
+  createdBy     Admin?        @relation(fields: [createdById], references: [id])
+  createdById   Int?          @map("created_by_id")
+  
+  // Índices únicos para evitar doble reserva
+  @@unique([date, time])
+  @@map("bookings")
+}
+
+model Client {
+  id              Int       @id @default(autoincrement())
+  name            String
+  phone           String    @unique
+  isRegular       Boolean   @default(false) @map("is_regular")
+  totalBookings   Int       @default(0) @map("total_bookings")
+  firstVisitDate  String?   @map("first_visit_date") // YYYY-MM-DD format
+  lastVisitDate   String?   @map("last_visit_date") // YYYY-MM-DD format
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  
+  // Relaciones
+  bookings        Booking[]
+  
+  @@map("clients")
+}
+
+model WorkingHours {
+  id              Int       @id @default(autoincrement())
+  dayOfWeek       Int       @map("day_of_week") // 0=Sunday, 1=Monday, etc.
+  enabled         Boolean   @default(true)
+  startTime       String    @map("start_time") // HH:MM format
+  endTime         String    @map("end_time") // HH:MM format
+  breakStartTime  String?   @map("break_start_time") // HH:MM format
+  breakEndTime    String?   @map("break_end_time") // HH:MM format
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  
+  // Relaciones
+  updatedBy       Admin?    @relation(fields: [updatedById], references: [id])
+  updatedById     Int?      @map("updated_by_id")
+  
+  @@unique([dayOfWeek])
+  @@map("working_hours")
+}
+
+model SalonConfig {
+  id                  Int       @id @default(autoincrement())
+  slotDuration        Int       @default(30) @map("slot_duration") // minutos
+  advanceBookingDays  Int       @default(30) @map("advance_booking_days")
+  salonName           String    @default("Salón Invictus") @map("salon_name")
+  timezone            String    @default("America/Argentina/Buenos_Aires")
+  defaultServices     String    @default("[]") // JSON array de servicios por defecto
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  updatedBy           Admin?    @relation(fields: [updatedById], references: [id])
+  updatedById         Int?      @map("updated_by_id")
+  
+  @@map("salon_config")
+}
+
+model AdminActivityLog {
+  id          Int       @id @default(autoincrement())
+  adminId     Int       @map("admin_id")
+  action      String    // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, etc.
+  entityType  String    @map("entity_type") // booking, client, config, working_hours, etc.
+  entityId    Int?      @map("entity_id") // ID de la entidad afectada (opcional)
+  description String    // Descripción de la acción
+  oldValues   String?   @map("old_values") // JSON con valores anteriores
+  newValues   String?   @map("new_values") // JSON con valores nuevos
+  ipAddress   String?   @map("ip_address")
+  userAgent   String?   @map("user_agent")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  
+  // Relaciones
+  admin       Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  
+  @@map("admin_activity_logs")
+}
