@@ -47,7 +47,7 @@ export async function createCalendarEvent(bookingData) {
 
     // Formatear fechas en la zona horaria de Argentina
     const formatDateTimeForArgentina = (date) => {
-      return date.toLocaleString('en-CA', { 
+      const formatted = date.toLocaleString('en-CA', { 
         timeZone: argentinaTimeZone,
         year: 'numeric',
         month: '2-digit',
@@ -57,6 +57,9 @@ export async function createCalendarEvent(bookingData) {
         second: '2-digit',
         hour12: false
       }).replace(',', 'T').replace(/\//g, '-');
+      
+      // Asegurar que no haya espacios extra después de la T
+      return formatted.replace('T ', 'T');
     };
 
     // Construir descripción con información adicional
@@ -163,7 +166,7 @@ export async function updateCalendarEvent(eventId, bookingData) {
 
     // Formatear fechas en la zona horaria de Argentina
     const formatDateTimeForArgentina = (date) => {
-      return date.toLocaleString('en-CA', { 
+      const formatted = date.toLocaleString('en-CA', { 
         timeZone: argentinaTimeZone,
         year: 'numeric',
         month: '2-digit',
@@ -173,6 +176,9 @@ export async function updateCalendarEvent(eventId, bookingData) {
         second: '2-digit',
         hour12: false
       }).replace(',', 'T').replace(/\//g, '-');
+      
+      // Asegurar que no haya espacios extra después de la T
+      return formatted.replace('T ', 'T');
     };
 
     let description = `Teléfono: ${bookingData.clientPhone}`;
