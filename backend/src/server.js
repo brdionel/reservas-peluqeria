@@ -14,6 +14,7 @@ import activityRoutes from './routes/activity.js';
 import syncRoutes from './routes/sync.js';
 import initRoutes from './routes/init.js';
 import keepAliveService from './services/keepAliveService.js';
+import cronService from './services/cronService.js';
 
 // Configuración
 dotenv.config();
@@ -100,6 +101,30 @@ app.post('/api/keep-alive/stop', (req, res) => {
   res.json({ message: 'Keep-alive detenido', status: keepAliveService.getStatus() });
 });
 
+// Endpoints para controlar el cron service
+app.get('/api/cron/status', (req, res) => {
+  res.json(cronService.getStatus());
+});
+
+app.post('/api/cron/start', (req, res) => {
+  cronService.start();
+  res.json({ message: 'Cron service iniciado', status: cronService.getStatus() });
+});
+
+app.post('/api/cron/stop', (req, res) => {
+  cronService.stop();
+  res.json({ message: 'Cron service detenido', status: cronService.getStatus() });
+});
+
+app.post('/api/cron/run-now', async (req, res) => {
+  try {
+    await cronService.runManualSync();
+    res.json({ message: 'Sincronización manual ejecutada', status: cronService.getStatus() });
+  } catch (error) {
+    res.status(500).json({ error: 'Error ejecutando sincronización manual', message: error.message });
+  }
+});
+
 // Ruta raíz
 app.get('/', (req, res) => {
   res.json({ 
@@ -155,6 +180,9 @@ app.listen(PORT, async () => {
   if (process.env.NODE_ENV === 'production') {
     console.log('🔄 Iniciando keep-alive automático...');
     keepAliveService.start();
+    
+    console.log('🔄 Iniciando cron service automático...');
+    cronService.start();
   }
 });
 
