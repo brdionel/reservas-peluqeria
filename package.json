@@ -18,7 +18,8 @@
     "db:generate": "cd backend && npm run db:generate",
     "db:migrate": "cd backend && npm run db:migrate",
     "db:studio": "cd backend && npm run db:studio",
-    "init:prod": "cd backend && npm run init:prod"
+    "init:prod": "cd backend && npm run init:prod",
+    "keep-alive": "node keep-alive.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

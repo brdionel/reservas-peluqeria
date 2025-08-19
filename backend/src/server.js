@@ -74,12 +74,13 @@ app.use('/api/activity', activityRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/init', initRoutes);
 
-// Ruta de salud
+// Health check endpoint para mantener la aplicación activa
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV 
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
