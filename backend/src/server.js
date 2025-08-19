@@ -13,6 +13,7 @@ import authRoutes from './routes/auth.js';
 import activityRoutes from './routes/activity.js';
 import syncRoutes from './routes/sync.js';
 import initRoutes from './routes/init.js';
+import keepAliveService from './services/keepAliveService.js';
 
 // Configuración
 dotenv.config();
@@ -84,6 +85,21 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Endpoint para controlar el keep-alive
+app.get('/api/keep-alive/status', (req, res) => {
+  res.json(keepAliveService.getStatus());
+});
+
+app.post('/api/keep-alive/start', (req, res) => {
+  keepAliveService.start();
+  res.json({ message: 'Keep-alive iniciado', status: keepAliveService.getStatus() });
+});
+
+app.post('/api/keep-alive/stop', (req, res) => {
+  keepAliveService.stop();
+  res.json({ message: 'Keep-alive detenido', status: keepAliveService.getStatus() });
+});
+
 // Ruta raíz
 app.get('/', (req, res) => {
   res.json({ 
@@ -133,6 +149,12 @@ app.listen(PORT, async () => {
     } catch (error) {
       console.error('❌ Error inicializando base de datos:', error);
     }
+  }
+  
+  // Iniciar keep-alive automáticamente en producción
+  if (process.env.NODE_ENV === 'production') {
+    console.log('🔄 Iniciando keep-alive automático...');
+    keepAliveService.start();
   }
 });
 
