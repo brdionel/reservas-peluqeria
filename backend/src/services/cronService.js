@@ -25,8 +25,13 @@ class CronService {
    * Verificar si estamos en horario de trabajo
    */
   isWorkingHours() {
+    // Obtener hora actual en Argentina (UTC-3)
     const now = new Date();
-    const currentHour = now.getHours();
+    const argentinaTime = new Date(now.getTime() - (3 * 60 * 60 * 1000)); // UTC-3
+    const currentHour = argentinaTime.getHours();
+    
+    console.log(`🕐 [CRON] Hora UTC: ${now.getHours()}:${now.getMinutes()}`);
+    console.log(`🕐 [CRON] Hora Argentina: ${currentHour}:${argentinaTime.getMinutes()}`);
     
     // Si estamos entre 7 AM y 3 AM del día siguiente
     if (currentHour >= this.config.startHour || currentHour < this.config.endHour) {
