@@ -41,25 +41,14 @@ export async function createCalendarEvent(bookingData) {
     // Crear fecha en zona horaria de Argentina
     const argentinaTimeZone = 'America/Argentina/Buenos_Aires';
     
-    // Crear la fecha en la zona horaria correcta
-    const startDateTime = new Date(`${bookingData.date}T${bookingData.time}:00`);
+    // Crear la fecha directamente en hora de Argentina (sin conversión UTC)
+    // Asumimos que bookingData.time ya está en hora de Argentina
+    const startDateTime = new Date(`${bookingData.date}T${bookingData.time}:00-03:00`);
     const endDateTime = new Date(startDateTime.getTime() + 30 * 60 * 1000); // 30 min por defecto
 
-    // Formatear fechas en la zona horaria de Argentina
+    // Formatear fechas en formato ISO para Google Calendar
     const formatDateTimeForArgentina = (date) => {
-      const formatted = date.toLocaleString('en-CA', { 
-        timeZone: argentinaTimeZone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-      }).replace(',', 'T').replace(/\//g, '-');
-      
-      // Asegurar que no haya espacios extra después de la T
-      return formatted.replace('T ', 'T');
+      return date.toISOString();
     };
 
     // Construir descripción con información adicional
@@ -160,25 +149,14 @@ export async function updateCalendarEvent(eventId, bookingData) {
     // Crear fecha en zona horaria de Argentina
     const argentinaTimeZone = 'America/Argentina/Buenos_Aires';
     
-    // Crear la fecha en la zona horaria correcta
-    const startDateTime = new Date(`${bookingData.date}T${bookingData.time}:00`);
+    // Crear la fecha directamente en hora de Argentina (sin conversión UTC)
+    // Asumimos que bookingData.time ya está en hora de Argentina
+    const startDateTime = new Date(`${bookingData.date}T${bookingData.time}:00-03:00`);
     const endDateTime = new Date(startDateTime.getTime() + 30 * 60 * 1000);
 
-    // Formatear fechas en la zona horaria de Argentina
+    // Formatear fechas en formato ISO para Google Calendar
     const formatDateTimeForArgentina = (date) => {
-      const formatted = date.toLocaleString('en-CA', { 
-        timeZone: argentinaTimeZone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-      }).replace(',', 'T').replace(/\//g, '-');
-      
-      // Asegurar que no haya espacios extra después de la T
-      return formatted.replace('T ', 'T');
+      return date.toISOString();
     };
 
     let description = `Teléfono: ${bookingData.clientPhone}`;
