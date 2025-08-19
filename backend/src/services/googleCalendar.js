@@ -38,8 +38,26 @@ export async function createCalendarEvent(bookingData) {
     const authClient = await auth.getClient();
     const calendar = google.calendar({ version: "v3", auth: authClient });
 
-    const startDateTime = new Date(`${bookingData.date}T${bookingData.time}`);
+    // Crear fecha en zona horaria de Argentina
+    const argentinaTimeZone = 'America/Argentina/Buenos_Aires';
+    
+    // Crear la fecha en la zona horaria correcta
+    const startDateTime = new Date(`${bookingData.date}T${bookingData.time}:00`);
     const endDateTime = new Date(startDateTime.getTime() + 30 * 60 * 1000); // 30 min por defecto
+
+    // Formatear fechas en la zona horaria de Argentina
+    const formatDateTimeForArgentina = (date) => {
+      return date.toLocaleString('en-CA', { 
+        timeZone: argentinaTimeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      }).replace(',', 'T').replace(/\//g, '-');
+    };
 
     // Construir descripción con información adicional
     let description = `Teléfono: ${bookingData.clientPhone}`;
@@ -54,12 +72,12 @@ export async function createCalendarEvent(bookingData) {
       summary: `Turno con ${bookingData.clientName}`,
       description: description,
       start: {
-        dateTime: startDateTime.toISOString(),
-        timeZone: "America/Argentina/Buenos_Aires",
+        dateTime: formatDateTimeForArgentina(startDateTime),
+        timeZone: argentinaTimeZone,
       },
       end: {
-        dateTime: endDateTime.toISOString(),
-        timeZone: "America/Argentina/Buenos_Aires",
+        dateTime: formatDateTimeForArgentina(endDateTime),
+        timeZone: argentinaTimeZone,
       },
       // Configuraciones adicionales del evento
       reminders: {
@@ -136,8 +154,26 @@ export async function updateCalendarEvent(eventId, bookingData) {
     const authClient = await auth.getClient();
     const calendar = google.calendar({ version: "v3", auth: authClient });
 
-    const startDateTime = new Date(`${bookingData.date}T${bookingData.time}`);
+    // Crear fecha en zona horaria de Argentina
+    const argentinaTimeZone = 'America/Argentina/Buenos_Aires';
+    
+    // Crear la fecha en la zona horaria correcta
+    const startDateTime = new Date(`${bookingData.date}T${bookingData.time}:00`);
     const endDateTime = new Date(startDateTime.getTime() + 30 * 60 * 1000);
+
+    // Formatear fechas en la zona horaria de Argentina
+    const formatDateTimeForArgentina = (date) => {
+      return date.toLocaleString('en-CA', { 
+        timeZone: argentinaTimeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      }).replace(',', 'T').replace(/\//g, '-');
+    };
 
     let description = `Teléfono: ${bookingData.clientPhone}`;
     if (bookingData.service) {
@@ -151,12 +187,12 @@ export async function updateCalendarEvent(eventId, bookingData) {
       summary: `Turno con ${bookingData.clientName}`,
       description: description,
       start: {
-        dateTime: startDateTime.toISOString(),
-        timeZone: "America/Argentina/Buenos_Aires",
+        dateTime: formatDateTimeForArgentina(startDateTime),
+        timeZone: argentinaTimeZone,
       },
       end: {
-        dateTime: endDateTime.toISOString(),
-        timeZone: "America/Argentina/Buenos_Aires",
+        dateTime: formatDateTimeForArgentina(endDateTime),
+        timeZone: argentinaTimeZone,
       },
       reminders: {
         useDefault: false,
