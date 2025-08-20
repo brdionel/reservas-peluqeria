@@ -326,8 +326,11 @@ export async function verifyBookingsInCalendar(prisma, startDate, endDate) {
             type: 'missing_in_calendar',
             bookingId: booking.id,
             clientName: booking.client.name,
+            clientPhone: booking.client.phone,
             date: booking.date,
             time: booking.time,
+            service: booking.service,
+            notes: booking.notes,
             googleEventId: booking.googleEventId,
             action: 'recreate_event'
           });
@@ -339,8 +342,11 @@ export async function verifyBookingsInCalendar(prisma, startDate, endDate) {
           type: 'missing_event_id',
           bookingId: booking.id,
           clientName: booking.client.name,
+          clientPhone: booking.client.phone,
           date: booking.date,
           time: booking.time,
+          service: booking.service,
+          notes: booking.notes,
           action: 'create_event'
         });
         console.log(`⚠️ Reserva sin ID de evento: ${booking.client.name} - ${booking.date} ${booking.time}`);
@@ -406,14 +412,23 @@ export async function repairMissingCalendarEvents(prisma, missingBookings) {
 
     for (const booking of missingBookings) {
       try {
+        // Determinar el nombre y teléfono del cliente
+        // Manejar tanto la estructura de verifyBookingsInCalendar como la estructura original de la BD
+        const clientName = booking.clientName || (booking.client && booking.client.name);
+        const clientPhone = booking.clientPhone || (booking.client && booking.client.phone) || '';
+        
+        if (!clientName) {
+          throw new Error('No se pudo obtener el nombre del cliente');
+        }
+        
         // Crear evento en Google Calendar
         const calendarResult = await createCalendarEvent({
-          clientName: booking.client.name,
-          clientPhone: booking.client.phone,
+          clientName: clientName,
+          clientPhone: clientPhone,
           date: booking.date,
           time: booking.time,
-          service: booking.service,
-          notes: booking.notes
+          service: booking.service || '',
+          notes: booking.notes || ''
         });
 
         if (calendarResult.success) {
@@ -424,14 +439,15 @@ export async function repairMissingCalendarEvents(prisma, missingBookings) {
           });
           
           repairResults.created++;
-          console.log(`✅ Reparado: ${booking.clientName} - ${booking.date} ${booking.time}`);
+          console.log(`✅ Reparado: ${clientName} - ${booking.date} ${booking.time}`);
         } else {
           repairResults.failed++;
-          repairResults.errors.push(`Error creando evento para ${booking.clientName}: ${calendarResult.error}`);
+          repairResults.errors.push(`Error creando evento para ${clientName}: ${calendarResult.error}`);
         }
       } catch (error) {
         repairResults.failed++;
-        repairResults.errors.push(`Error procesando ${booking.clientName}: ${error.message}`);
+        const errorClientName = booking.clientName || (booking.client && booking.client.name) || 'Cliente desconocido';
+        repairResults.errors.push(`Error procesando ${errorClientName}: ${error.message}`);
       }
     }
 
