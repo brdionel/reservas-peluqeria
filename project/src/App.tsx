@@ -139,7 +139,8 @@ function ReservaView() {
       <Modal 
         isOpen={showSuccessModal} 
         onClose={handleNewBooking}
-        size="lg"
+        title="Reserva Confirmada"
+        type="success"
       >
         {completedBooking && (
           <BookingSuccess 

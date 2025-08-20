@@ -482,6 +482,7 @@ export const useBookingData = () => {
 
   return {
     bookings,
+    setBookings,
     predefinedClients,
     salonConfig,
     isLoaded,

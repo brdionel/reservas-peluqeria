@@ -68,6 +68,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
     updatePredefinedClient,
     deletePredefinedClient,
     updateSalonConfig,
+    bookings,
+    setBookings,
   } = useBookingData();
   const { admin, logout } = useAuth();
   const navigate = useNavigate();
@@ -249,8 +251,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
       const response = await bookingService.createBooking(bookingData);
 
       if (response.success) {
-        // Actualizar estado local
-        createBooking(bookingData);
+        // Actualizar estado local con la respuesta del backend
+        if (response.data) {
+          setBookings((prev: BookingData[]) => [...prev, response.data as BookingData]);
+        }
 
         showNotification(
           "success",
