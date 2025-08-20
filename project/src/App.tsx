@@ -27,11 +27,14 @@ function ReservaView() {
     setSelectedTime('');
   };
 
-  const handleBookingSubmit = (bookingData: BookingData) => {
-    const success = createBooking(bookingData);
+  const handleBookingSubmit = async (bookingData: BookingData) => {
+    const success = await createBooking(bookingData);
     if (success) {
       setCompletedBooking(bookingData);
       setShowSuccessModal(true);
+    } else {
+      // Mostrar error al usuario
+      alert('Error al crear la reserva. Por favor, intenta nuevamente.');
     }
   };
 

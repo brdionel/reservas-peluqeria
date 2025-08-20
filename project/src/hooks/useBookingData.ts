@@ -369,32 +369,51 @@ export const useBookingData = () => {
   };
 
   // Crear nueva reserva
-  const createBooking = (bookingData: BookingData): boolean => {
-    // Verificar si el slot ya está ocupado
-    const existingBooking = bookings.find(
-      (b) => b.date === bookingData.date && b.time === bookingData.time
-    );
+  const createBooking = async (bookingData: BookingData): Promise<boolean> => {
+    try {
+      // Verificar si el slot ya está ocupado
+      const existingBooking = bookings.find(
+        (b) => b.date === bookingData.date && b.time === bookingData.time
+      );
 
-    if (existingBooking) {
-      return false; // Slot ya ocupado
+      if (existingBooking) {
+        console.error('Slot ya ocupado');
+        return false; // Slot ya ocupado
+      }
+
+      // Verificar que la fecha no sea pasada
+      const bookingDate = new Date(bookingData.date + "T00:00:00");
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (bookingDate < today) {
+        console.error('No se pueden hacer reservas en fechas pasadas');
+        return false; // No se pueden hacer reservas en fechas pasadas
+      }
+
+      // Verificar que no sea domingo
+      if (bookingDate.getDay() === 0) {
+        console.error('Domingo cerrado');
+        return false; // Domingo cerrado
+      }
+
+      // Hacer llamada al backend
+      console.log('Enviando reserva al backend:', bookingData);
+      const response = await bookingService.createBooking(bookingData);
+      
+      if (response.success && response.data) {
+        console.log('Reserva creada exitosamente en el backend');
+        // Actualizar el estado local con la nueva reserva
+        setBookings((prev) => [...prev, response.data as BookingData]);
+        return true;
+      } else {
+        console.error('Error al crear reserva en el backend:', response.error);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error al crear reserva:', error);
+      return false;
     }
-
-    // Verificar que la fecha no sea pasada
-    const bookingDate = new Date(bookingData.date + "T00:00:00");
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    if (bookingDate < today) {
-      return false; // No se pueden hacer reservas en fechas pasadas
-    }
-
-    // Verificar que no sea domingo
-    if (bookingDate.getDay() === 0) {
-      return false; // Domingo cerrado
-    }
-
-    setBookings((prev) => [...prev, bookingData]);
-    return true;
   };
 
   // Cancelar reserva
