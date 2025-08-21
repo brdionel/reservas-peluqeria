@@ -4,6 +4,7 @@ import { prisma } from '../server.js';
 import { validateRequest } from '../middleware/validation.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { logActivity, ACTION_TYPES, ENTITY_TYPES } from '../services/activityLogger.js';
+import { configLimiter } from '../middleware/rateLimit.js';
 
 const router = express.Router();
 
@@ -115,7 +116,7 @@ router.get('/', async (req, res) => {
 });
 
 // PUT /api/config - Actualizar configuración (requiere autenticación)
-router.put('/', authenticateToken, validateRequest(configSchema), async (req, res) => {
+router.put('/', authenticateToken, configLimiter, validateRequest(configSchema), async (req, res) => {
   try {
     const { slotDuration, advanceBookingDays, salonName, timezone, defaultServices } = req.body;
 
@@ -191,7 +192,7 @@ router.put('/', authenticateToken, validateRequest(configSchema), async (req, re
 });
 
 // PUT /api/config/working-hours - Actualizar horarios de trabajo (requiere autenticación)
-router.put('/working-hours', authenticateToken, async (req, res) => {
+router.put('/working-hours', authenticateToken, configLimiter, async (req, res) => {
   try {
     const { workingHours } = req.body;
 

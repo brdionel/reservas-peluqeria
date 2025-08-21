@@ -4,12 +4,13 @@ import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken } from '../middleware/auth.js';
 import { logActivity, ACTION_TYPES, ENTITY_TYPES } from '../services/activityLogger.js';
+import { authLimiter } from '../middleware/rateLimit.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
 // POST /api/auth/login - Iniciar sesión
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
 

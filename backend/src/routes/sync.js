@@ -1,11 +1,12 @@
 import express from 'express';
 import { prisma } from '../server.js';
 import { verifyBookingsInCalendar, repairMissingCalendarEvents, getCalendarEvents } from '../services/googleCalendar.js';
+import { syncLimiter } from '../middleware/rateLimit.js';
 
 const router = express.Router();
 
 // GET /api/sync/verify - Verificar que las reservas estén en Google Calendar
-router.get('/verify', async (req, res) => {
+router.get('/verify', syncLimiter, async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
@@ -40,7 +41,7 @@ router.get('/verify', async (req, res) => {
 });
 
 // POST /api/sync/repair - Reparar reservas que no están en Google Calendar
-router.post('/repair', async (req, res) => {
+router.post('/repair', syncLimiter, async (req, res) => {
   try {
     const { startDate, endDate, autoRepair = false } = req.body;
     
@@ -116,7 +117,7 @@ router.post('/repair', async (req, res) => {
 });
 
 // GET /api/sync/calendar/events - Obtener eventos de Google Calendar
-router.get('/calendar/events', async (req, res) => {
+router.get('/calendar/events', syncLimiter, async (req, res) => {
   try {
     const { startDate, endDate, onlyRelevant = 'false' } = req.query;
     
@@ -151,7 +152,7 @@ router.get('/calendar/events', async (req, res) => {
 });
 
 // POST /api/sync/auto-verify - Verificación automática (últimos 30 días + próximos 30 días)
-router.post('/auto-verify', async (req, res) => {
+router.post('/auto-verify', syncLimiter, async (req, res) => {
   try {
     const today = new Date();
     const startDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000); // 30 días atrás

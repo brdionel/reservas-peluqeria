@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../server.js';
 import { validateRequest } from '../middleware/validation.js';
 import { createCalendarEvent, deleteCalendarEvent, updateCalendarEvent } from '../services/googleCalendar.js';
+import { bookingLimiter } from '../middleware/rateLimit.js';
 
 const router = express.Router();
 
@@ -102,7 +103,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/bookings - Crear nueva reserva
-router.post('/', validateRequest(createBookingSchema), async (req, res) => {
+router.post('/', bookingLimiter, validateRequest(createBookingSchema), async (req, res) => {
   try {
     const { name, phone, date, time, service, notes } = req.body;
 

@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
+import { smartLimiter } from './middleware/rateLimit.js';
 
 // Importar rutas
 import bookingRoutes from './routes/bookings.js';
@@ -26,6 +27,9 @@ export const prisma = new PrismaClient();
 
 // Middleware de seguridad
 app.use(helmet());
+
+// Rate limiting inteligente (diferentes límites para admin y clientes)
+app.use(smartLimiter);
 
 // CORS
 const allowedOrigins = [

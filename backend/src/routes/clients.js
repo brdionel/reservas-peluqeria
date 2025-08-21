@@ -2,6 +2,7 @@ import express from 'express';
 import { z } from 'zod';
 import { prisma } from '../server.js';
 import { validateRequest } from '../middleware/validation.js';
+// No necesitamos importar rate limiting específico aquí, el smartLimiter global se encarga
 
 const router = express.Router();
 
