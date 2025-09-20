@@ -46,7 +46,11 @@ class ApiClient {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || `Error ${response.status}`);
+        // No lanzar excepción, devolver el error directamente
+        return {
+          success: false,
+          error: data.error || data.message || `Error ${response.status}`,
+        };
       }
 
       // Convertir la respuesta del backend al formato esperado por el frontend
@@ -212,6 +216,16 @@ export const clientService = {
   async deleteClient(id: number) {
     return apiClient.delete(`/api/clients/${id}`);
   },
+
+  // Reactivar cliente eliminado
+  async restoreClient(id: number) {
+    return apiClient.put(`/api/clients/${id}/restore`);
+  },
+
+  // Obtener clientes eliminados
+  async getDeletedClients() {
+    return apiClient.get('/api/clients/deleted');
+  },
 };
 
 export const activityService = {
@@ -226,6 +240,38 @@ export const activityService = {
     const params = new URLSearchParams(options).toString();
     return apiClient.get(`/api/activity/stats?${params}`);
   },
+};
+
+export const calendarService = {
+  // Obtener todos los calendarios
+  async getCalendars() {
+    return apiClient.get('/api/calendars');
+  },
+
+  // Obtener solo calendarios activos
+  async getActiveCalendars() {
+    return apiClient.get('/api/calendars/active');
+  },
+
+  // Crear nuevo calendario
+  async createCalendar(data: any) {
+    return apiClient.post('/api/calendars', data);
+  },
+
+  // Actualizar calendario
+  async updateCalendar(id: number, data: any) {
+    return apiClient.put(`/api/calendars/${id}`, data);
+  },
+
+  // Eliminar calendario
+  async deleteCalendar(id: number) {
+    return apiClient.delete(`/api/calendars/${id}`);
+  },
+
+  // Establecer como calendario primario
+  async setPrimaryCalendar(id: number) {
+    return apiClient.post(`/api/calendars/${id}/set-primary`);
+  }
 };
 
 // Utilidades

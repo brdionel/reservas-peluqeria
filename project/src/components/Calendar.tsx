@@ -15,7 +15,7 @@ export const Calendar: React.FC<CalendarProps> = ({
   currentMonth,
   onMonthChange,
 }) => {
-  const { hasAvailability } = useBookingData();
+  const { hasAvailability, salonConfig } = useBookingData();
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -68,7 +68,22 @@ export const Calendar: React.FC<CalendarProps> = ({
   };
 
   const isDateSelectable = (date: Date) => {
-    return date >= today && date.getDay() !== 0 ; // Not past and not Sunday
+    // Verificar que la fecha no sea pasada
+    if (date < today) {
+      return false;
+    }
+    
+    // Verificar que la fecha esté dentro del rango permitido
+    const advanceBookingDays = salonConfig?.advanceBookingDays || 30;
+    const maxDate = new Date(today);
+    maxDate.setDate(today.getDate() + advanceBookingDays);
+    
+    if (date > maxDate) {
+      return false;
+    }
+    
+    // Verificar disponibilidad
+    return hasAvailability(date);
   };
 
   const renderCalendarDays = () => {
@@ -90,7 +105,11 @@ export const Calendar: React.FC<CalendarProps> = ({
       const isToday = today.toDateString() === date.toDateString();
       const isSelectable = isDateSelectable(date);
       const hasSlots = hasAvailability(date);
-      const isSunday = date.getDay() === 0;
+      const isPastDate = date < today;
+      const advanceBookingDays = salonConfig?.advanceBookingDays || 30;
+      const maxDate = new Date(today);
+      maxDate.setDate(today.getDate() + advanceBookingDays);
+      const isBeyondRange = date > maxDate;
 
       days.push(
         <button
@@ -108,9 +127,11 @@ export const Calendar: React.FC<CalendarProps> = ({
                 ? hasSlots
                   ? "bg-white text-gray-700 hover:bg-blue-50 hover:text-blue-600 border border-gray-200 hover:border-blue-300"
                   : "bg-orange-50 text-orange-600 border border-orange-200"
-                : isSunday
-                ? "bg-red-50 text-red-400 cursor-not-allowed"
-                : "bg-gray-50 text-gray-400 cursor-not-allowed"
+                : isPastDate
+                ? "bg-gray-50 text-gray-400 cursor-not-allowed"
+                : isBeyondRange
+                ? "bg-yellow-50 text-yellow-500 cursor-not-allowed"
+                : "bg-red-50 text-red-400 cursor-not-allowed"
             }
             ${isSelectable ? "hover:shadow-md" : ""}
           `}
@@ -176,8 +197,16 @@ export const Calendar: React.FC<CalendarProps> = ({
           <span>Completo</span>
         </div>
         <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-gray-50 rounded"></div>
+          <span>Pasado</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-yellow-50 rounded"></div>
+          <span>Fuera del rango ({salonConfig?.advanceBookingDays || 30} días)</span>
+        </div>
+        <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-red-50 rounded"></div>
-          <span>Cerrado (Domingo)</span>
+          <span>Cerrado</span>
         </div>
       </div>
     </div>

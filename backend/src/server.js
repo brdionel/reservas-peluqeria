@@ -14,6 +14,7 @@ import authRoutes from './routes/auth.js';
 import activityRoutes from './routes/activity.js';
 import syncRoutes from './routes/sync.js';
 import initRoutes from './routes/init.js';
+import calendarRoutes from './routes/calendars.js';
 import keepAliveService from './services/keepAliveService.js';
 import cronService from './services/cronService.js';
 
@@ -79,6 +80,7 @@ app.use('/api/slots', slotRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/init', initRoutes);
+app.use('/api/calendars', calendarRoutes);
 
 // Health check endpoint para mantener la aplicación activa
 app.get('/api/health', (req, res) => {
@@ -141,6 +143,7 @@ app.get('/', (req, res) => {
       config: '/api/config',
       slots: '/api/slots',
       activity: '/api/activity',
+      calendars: '/api/calendars',
       health: '/api/health'
     }
   });

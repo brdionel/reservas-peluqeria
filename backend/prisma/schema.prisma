@@ -6,8 +6,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Admin {
@@ -28,6 +29,7 @@ model Admin {
   salonConfigs  SalonConfig[] // Para tracking de cambios en configuración
   workingHours  WorkingHours[] // Para tracking de quién configuró los horarios
   activityLogs  AdminActivityLog[] // Logs de actividades del admin
+  googleCalendars GoogleCalendar[] // Para tracking de calendarios gestionados
   
   @@map("admins")
 }
@@ -39,7 +41,7 @@ model Booking {
   status        String        @default("CONFIRMED")
   service       String?
   notes         String?
-  googleEventId String?       @map("google_event_id") // ID del evento en Google Calendar
+  googleEventIds String?      @map("google_event_ids") // JSON array de IDs de eventos en múltiples calendarios
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
   
@@ -62,6 +64,8 @@ model Client {
   totalBookings   Int       @default(0) @map("total_bookings")
   firstVisitDate  String?   @map("first_visit_date") // YYYY-MM-DD format
   lastVisitDate   String?   @map("last_visit_date") // YYYY-MM-DD format
+  isDeleted       Boolean   @default(false) @map("is_deleted") // Soft delete
+  deletedAt       DateTime? @map("deleted_at") // Timestamp de eliminación
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
   
@@ -122,4 +126,21 @@ model AdminActivityLog {
   admin       Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
   
   @@map("admin_activity_logs")
+}
+
+model GoogleCalendar {
+  id              Int       @id @default(autoincrement())
+  name            String    // Nombre descriptivo del calendario
+  calendarId      String    @unique @map("calendar_id") // ID del calendario en Google
+  email           String    // Email asociado al calendario
+  isActive        Boolean   @default(true) @map("is_active") // Si está activo para crear eventos
+  isPrimary       Boolean   @default(false) @map("is_primary") // Si es el calendario principal
+  colorId         String?   @map("color_id") // Color del calendario en Google
+  description     String?   // Descripción del calendario
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  updatedBy       Admin?    @relation(fields: [updatedById], references: [id])
+  updatedById     Int?      @map("updated_by_id")
+  
+  @@map("google_calendars")
 }

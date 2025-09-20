@@ -13,8 +13,7 @@ const configSchema = z.object({
   slotDuration: z.number().min(15).max(120),
   advanceBookingDays: z.number().min(1).max(365),
   salonName: z.string().min(1).max(255),
-  timezone: z.string(),
-  defaultServices: z.array(z.string())
+  timezone: z.string()
 });
 
 // Esquema de validación para horarios de trabajo
@@ -32,15 +31,7 @@ const DEFAULT_CONFIG = {
   slotDuration: 30,
   advanceBookingDays: 30,
   salonName: "Salón Invictus",
-  timezone: "America/Argentina/Buenos_Aires",
-  defaultServices: [
-    "Corte de Cabello",
-    "Lavado y Peinado", 
-    "Corte + Lavado",
-    "Barba",
-    "Corte + Barba",
-    "Tratamiento Capilar"
-  ]
+  timezone: "America/Argentina/Buenos_Aires"
 };
 
 // Horarios por defecto
@@ -69,8 +60,7 @@ router.get('/', async (req, res) => {
           slotDuration: DEFAULT_CONFIG.slotDuration,
           advanceBookingDays: DEFAULT_CONFIG.advanceBookingDays,
           salonName: DEFAULT_CONFIG.salonName,
-          timezone: DEFAULT_CONFIG.timezone,
-          defaultServices: JSON.stringify(DEFAULT_CONFIG.defaultServices)
+          timezone: DEFAULT_CONFIG.timezone
         }
       });
     }
@@ -96,7 +86,6 @@ router.get('/', async (req, res) => {
       advanceBookingDays: config.advanceBookingDays,
       salonName: config.salonName,
       timezone: config.timezone,
-      defaultServices: JSON.parse(config.defaultServices),
       workingHours: workingHours.length > 0 ? workingHours : DEFAULT_WORKING_HOURS,
       createdAt: config.createdAt,
       updatedAt: config.updatedAt
@@ -118,7 +107,7 @@ router.get('/', async (req, res) => {
 // PUT /api/config - Actualizar configuración (requiere autenticación)
 router.put('/', authenticateToken, configLimiter, validateRequest(configSchema), async (req, res) => {
   try {
-    const { slotDuration, advanceBookingDays, salonName, timezone, defaultServices } = req.body;
+    const { slotDuration, advanceBookingDays, salonName, timezone } = req.body;
 
     // Buscar configuración existente
     let config = await prisma.salonConfig.findFirst({
@@ -130,7 +119,6 @@ router.put('/', authenticateToken, configLimiter, validateRequest(configSchema),
       advanceBookingDays,
       salonName,
       timezone,
-      defaultServices: JSON.stringify(defaultServices),
       updatedById: req.admin.id
     };
 
@@ -158,8 +146,7 @@ router.put('/', authenticateToken, configLimiter, validateRequest(configSchema),
         slotDuration,
         advanceBookingDays,
         salonName,
-        timezone,
-        defaultServices
+        timezone
       },
       ipAddress: req.ip,
       userAgent: req.get('User-Agent')
@@ -172,7 +159,6 @@ router.put('/', authenticateToken, configLimiter, validateRequest(configSchema),
       advanceBookingDays: config.advanceBookingDays,
       salonName: config.salonName,
       timezone: config.timezone,
-      defaultServices: JSON.parse(config.defaultServices),
       createdAt: config.createdAt,
       updatedAt: config.updatedAt
     };
@@ -266,7 +252,6 @@ router.post('/reset', authenticateToken, async (req, res) => {
         advanceBookingDays: DEFAULT_CONFIG.advanceBookingDays,
         salonName: DEFAULT_CONFIG.salonName,
         timezone: DEFAULT_CONFIG.timezone,
-        defaultServices: JSON.stringify(DEFAULT_CONFIG.defaultServices),
         updatedById: req.admin.id
       }
     });
@@ -284,7 +269,6 @@ router.post('/reset', authenticateToken, async (req, res) => {
       advanceBookingDays: config.advanceBookingDays,
       salonName: config.salonName,
       timezone: config.timezone,
-      defaultServices: JSON.parse(config.defaultServices),
       workingHours: DEFAULT_WORKING_HOURS,
       createdAt: config.createdAt,
       updatedAt: config.updatedAt

@@ -23,7 +23,7 @@ if (process.env.GOOGLE_CREDENTIALS) {
 }
 
 /**
- * Crear un evento en Google Calendar
+ * Crear un evento en múltiples calendarios de Google Calendar
  * @param {Object} bookingData - Datos de la reserva
  * @param {string} bookingData.clientName - Nombre del cliente
  * @param {string} bookingData.clientPhone - Teléfono del cliente
@@ -31,6 +31,7 @@ if (process.env.GOOGLE_CREDENTIALS) {
  * @param {string} bookingData.time - Hora en formato HH:MM
  * @param {string} bookingData.service - Servicio (opcional)
  * @param {string} bookingData.notes - Notas adicionales (opcional)
+ * @param {Array} bookingData.calendarIds - Array de IDs de calendarios (opcional)
  * @returns {Promise<Object>} - Respuesta de Google Calendar API
  */
 export async function createCalendarEvent(bookingData) {
@@ -81,20 +82,67 @@ export async function createCalendarEvent(bookingData) {
       },
     };
 
-    const calendarId = process.env.GOOGLE_CALENDAR_ID || "brunovicente32@gmail.com";
+    // Obtener calendarios activos desde la base de datos o usar el por defecto
+    let calendarIds = [];
+    
+    if (bookingData.calendarIds && Array.isArray(bookingData.calendarIds)) {
+      calendarIds = bookingData.calendarIds;
+    } else {
+      // Usar calendario por defecto si no se especifican
+      const defaultCalendarId = process.env.GOOGLE_CALENDAR_ID || "brunovicente32@gmail.com";
+      calendarIds = [defaultCalendarId];
+    }
 
-    const response = await calendar.events.insert({
-      calendarId,
-      requestBody: evento,
-    });
+    console.log(`🔄 Creando evento en ${calendarIds.length} calendario(s):`, calendarIds);
 
-    console.log('✅ Evento creado en Google Calendar:', response.data.id);
-    return {
-      success: true,
-      eventId: response.data.id,
-      eventUrl: response.data.htmlLink,
-      data: response.data
-    };
+    // Crear evento en todos los calendarios especificados
+    const results = [];
+    const eventIds = [];
+
+    for (const calendarId of calendarIds) {
+      try {
+        const response = await calendar.events.insert({
+          calendarId,
+          requestBody: evento,
+        });
+
+        results.push({
+          calendarId,
+          success: true,
+          eventId: response.data.id,
+          eventUrl: response.data.htmlLink
+        });
+        
+        eventIds.push(response.data.id);
+        console.log(`✅ Evento creado en calendario ${calendarId}:`, response.data.id);
+      } catch (error) {
+        console.error(`❌ Error creando evento en calendario ${calendarId}:`, error.message);
+        results.push({
+          calendarId,
+          success: false,
+          error: error.message
+        });
+      }
+    }
+
+    // Verificar si al menos un evento se creó exitosamente
+    const successfulEvents = results.filter(r => r.success);
+    
+    if (successfulEvents.length > 0) {
+      return {
+        success: true,
+        eventIds: eventIds,
+        results: results,
+        primaryEventId: eventIds[0], // Para compatibilidad con código existente
+        primaryEventUrl: successfulEvents[0].eventUrl
+      };
+    } else {
+      return {
+        success: false,
+        error: 'No se pudo crear el evento en ningún calendario',
+        results: results
+      };
+    }
 
   } catch (error) {
     console.error('❌ Error al crear evento en Google Calendar:', error);
@@ -107,24 +155,65 @@ export async function createCalendarEvent(bookingData) {
 }
 
 /**
- * Eliminar un evento de Google Calendar
- * @param {string} eventId - ID del evento en Google Calendar
+ * Eliminar un evento de múltiples calendarios de Google Calendar
+ * @param {string|Array} eventIds - ID del evento o array de IDs de eventos en Google Calendar
+ * @param {Array} calendarIds - Array de IDs de calendarios (opcional)
  * @returns {Promise<Object>} - Resultado de la eliminación
  */
-export async function deleteCalendarEvent(eventId) {
+export async function deleteCalendarEvent(eventIds, calendarIds = null) {
   try {
     const authClient = await auth.getClient();
     const calendar = google.calendar({ version: "v3", auth: authClient });
 
-    const calendarId = process.env.GOOGLE_CALENDAR_ID || "brunovicente32@gmail.com";
+    // Normalizar eventIds a array
+    const eventIdArray = Array.isArray(eventIds) ? eventIds : [eventIds];
+    
+    // Obtener calendarios
+    let targetCalendarIds = calendarIds;
+    if (!targetCalendarIds || !Array.isArray(targetCalendarIds)) {
+      const defaultCalendarId = process.env.GOOGLE_CALENDAR_ID || "brunovicente32@gmail.com";
+      targetCalendarIds = [defaultCalendarId];
+    }
 
-    await calendar.events.delete({
-      calendarId,
-      eventId: eventId,
-    });
+    console.log(`🔄 Eliminando ${eventIdArray.length} evento(s) de ${targetCalendarIds.length} calendario(s)`);
 
-    console.log('✅ Evento eliminado de Google Calendar:', eventId);
-    return { success: true };
+    const results = [];
+    let successCount = 0;
+
+    // Intentar eliminar cada evento de cada calendario
+    for (const calendarId of targetCalendarIds) {
+      for (const eventId of eventIdArray) {
+        try {
+          await calendar.events.delete({
+            calendarId,
+            eventId: eventId,
+          });
+
+          results.push({
+            calendarId,
+            eventId,
+            success: true
+          });
+          successCount++;
+          console.log(`✅ Evento ${eventId} eliminado del calendario ${calendarId}`);
+        } catch (error) {
+          results.push({
+            calendarId,
+            eventId,
+            success: false,
+            error: error.message
+          });
+          console.error(`❌ Error eliminando evento ${eventId} del calendario ${calendarId}:`, error.message);
+        }
+      }
+    }
+
+    return {
+      success: successCount > 0,
+      successCount,
+      totalAttempts: eventIdArray.length * targetCalendarIds.length,
+      results
+    };
 
   } catch (error) {
     console.error('❌ Error al eliminar evento de Google Calendar:', error);
@@ -136,12 +225,13 @@ export async function deleteCalendarEvent(eventId) {
 }
 
 /**
- * Actualizar un evento en Google Calendar
- * @param {string} eventId - ID del evento en Google Calendar
+ * Actualizar un evento en múltiples calendarios de Google Calendar
+ * @param {string|Array} eventIds - ID del evento o array de IDs de eventos en Google Calendar
  * @param {Object} bookingData - Nuevos datos de la reserva
+ * @param {Array} calendarIds - Array de IDs de calendarios (opcional)
  * @returns {Promise<Object>} - Resultado de la actualización
  */
-export async function updateCalendarEvent(eventId, bookingData) {
+export async function updateCalendarEvent(eventIds, bookingData, calendarIds = null) {
   try {
     const authClient = await auth.getClient();
     const calendar = google.calendar({ version: "v3", auth: authClient });
@@ -187,21 +277,71 @@ export async function updateCalendarEvent(eventId, bookingData) {
       },
     };
 
-    const calendarId = process.env.GOOGLE_CALENDAR_ID || "brunovicente32@gmail.com";
+    // Normalizar eventIds a array
+    const eventIdArray = Array.isArray(eventIds) ? eventIds : [eventIds];
+    
+    // Obtener calendarios
+    let targetCalendarIds = calendarIds;
+    if (!targetCalendarIds || !Array.isArray(targetCalendarIds)) {
+      const defaultCalendarId = process.env.GOOGLE_CALENDAR_ID || "brunovicente32@gmail.com";
+      targetCalendarIds = [defaultCalendarId];
+    }
 
-    const response = await calendar.events.update({
-      calendarId,
-      eventId: eventId,
-      requestBody: evento,
-    });
+    console.log(`🔄 Actualizando ${eventIdArray.length} evento(s) en ${targetCalendarIds.length} calendario(s)`);
 
-    console.log('✅ Evento actualizado en Google Calendar:', eventId);
-    return {
-      success: true,
-      eventId: response.data.id,
-      eventUrl: response.data.htmlLink,
-      data: response.data
-    };
+    const results = [];
+    const updatedEventIds = [];
+    let successCount = 0;
+
+    // Actualizar cada evento en cada calendario
+    for (const calendarId of targetCalendarIds) {
+      for (const eventId of eventIdArray) {
+        try {
+          const response = await calendar.events.update({
+            calendarId,
+            eventId: eventId,
+            requestBody: evento,
+          });
+
+          results.push({
+            calendarId,
+            eventId,
+            success: true,
+            newEventId: response.data.id,
+            eventUrl: response.data.htmlLink
+          });
+          
+          updatedEventIds.push(response.data.id);
+          successCount++;
+          console.log(`✅ Evento ${eventId} actualizado en calendario ${calendarId}`);
+        } catch (error) {
+          results.push({
+            calendarId,
+            eventId,
+            success: false,
+            error: error.message
+          });
+          console.error(`❌ Error actualizando evento ${eventId} en calendario ${calendarId}:`, error.message);
+        }
+      }
+    }
+
+    // Verificar si al menos un evento se actualizó exitosamente
+    if (successCount > 0) {
+      return {
+        success: true,
+        eventIds: updatedEventIds,
+        results: results,
+        primaryEventId: updatedEventIds[0], // Para compatibilidad con código existente
+        primaryEventUrl: results.find(r => r.success)?.eventUrl
+      };
+    } else {
+      return {
+        success: false,
+        error: 'No se pudo actualizar el evento en ningún calendario',
+        results: results
+      };
+    }
 
   } catch (error) {
     console.error('❌ Error al actualizar evento en Google Calendar:', error);

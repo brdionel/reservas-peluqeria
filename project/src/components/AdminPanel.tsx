@@ -19,31 +19,30 @@ import {
   Settings,
   Menu,
   X,
-  Edit,
   Save,
-  UserPlus,
   ChevronLeft,
   ChevronRight,
   LogOut,
+  UserPlus,
+  Edit,
 } from "lucide-react";
 import { useBookingData } from "../hooks/useBookingData";
 import { useAuth } from "../hooks/useAuth";
-import { configService, bookingService } from "../services/api";
+import { configService, bookingService, clientService } from "../services/api";
 import { ConfirmModal } from "./Modal";
+import { ClientModal } from "./ClientModal";
 import {
   BookingData,
-  Client,
   WorkingHours,
   SalonConfig,
 } from "../types/booking";
 
-interface AdminPanelProps {
-  onBackToClient: () => void;
-}
+interface AdminPanelProps {}
 
 interface ManualBookingForm {
   name: string;
-  phone: string;
+  areaCode: string;
+  phoneNumber: string;
   time: string;
 }
 
@@ -53,23 +52,15 @@ type AdminView =
   | "history"
   | "clients"
   | "stats"
-  | "config"
-  | "predefined-clients";
+  | "config";
 
-export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
+export const AdminPanel: React.FC<AdminPanelProps> = () => {
   const {
     getAllBookings,
     cancelBooking,
-    createBooking,
     getAvailableSlots,
-    predefinedClients,
     salonConfig,
-    addPredefinedClient,
-    updatePredefinedClient,
-    deletePredefinedClient,
     updateSalonConfig,
-    bookings,
-    setBookings,
   } = useBookingData();
   const { admin, logout } = useAuth();
   const navigate = useNavigate();
@@ -89,7 +80,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
   const [manualBookingForm, setManualBookingForm] = useState<ManualBookingForm>(
     {
       name: "",
-      phone: "",
+      areaCode: "",
+      phoneNumber: "",
       time: "",
     }
   );
@@ -107,18 +99,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
     booking: null,
   });
 
-  const [viewMode, setViewMode] = useState<"cards" | "timeline">("cards");
+  const [viewMode] = useState<"cards" | "timeline">("cards");
 
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFilter, setDateFilter] = useState("");
 
-  const [editingClient, setEditingClient] = useState<number | null>(null);
-  const [newClient, setNewClient] = useState<Partial<Client>>({
-    name: "",
-    phone: "",
-    isRegular: false,
+  // Estados para gestión de clientes
+  const [showClientModal, setShowClientModal] = useState(false);
+  const [clientModalMode, setClientModalMode] = useState<"add" | "edit">("add");
+  const [editingClientIndex, setEditingClientIndex] = useState<number | null>(null);
+  const [clients, setClients] = useState<any[]>([]);
+  const [deleteClientModal, setDeleteClientModal] = useState<{
+    isOpen: boolean;
+    client: any | null;
+    clientIndex: number | null;
+  }>({
+    isOpen: false,
+    client: null,
+    clientIndex: null,
   });
-  const [showAddClient, setShowAddClient] = useState(false);
+
   const [tempWorkingHours, setTempWorkingHours] = useState<WorkingHours[]>([]);
   const [hasWorkingHoursChanges, setHasWorkingHoursChanges] = useState(false);
 
@@ -126,7 +126,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
   const [selectedDate, setSelectedDate] = useState(new Date());
 
   // Estado para manejar el scroll de la navegación de días
-  const [scrollPosition, setScrollPosition] = useState(0);
 
   // Inicializar horarios temporales cuando se carga la configuración
   useEffect(() => {
@@ -232,16 +231,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
 
     if (
       !manualBookingForm.name ||
-      !manualBookingForm.phone ||
+      !manualBookingForm.areaCode ||
+      !manualBookingForm.phoneNumber ||
       !manualBookingForm.time
     ) {
       showNotification("error", "Por favor completa todos los campos");
       return;
     }
 
+    // Formatear el teléfono completo
+    const fullPhone = `+54 9 ${manualBookingForm.areaCode} ${manualBookingForm.phoneNumber}`;
+
     const bookingData: BookingData = {
       name: manualBookingForm.name,
-      phone: manualBookingForm.phone,
+      phone: fullPhone,
       date: currentView === "today" ? todayString : selectedDateString,
       time: manualBookingForm.time,
     };
@@ -251,16 +254,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
       const response = await bookingService.createBooking(bookingData);
 
       if (response.success) {
-        // Actualizar estado local con la respuesta del backend
-        if (response.data) {
-          setBookings((prev: BookingData[]) => [...prev, response.data as BookingData]);
-        }
+        // Recargar todas las reservas para mantener sincronización
+        getAllBookings();
 
         showNotification(
           "success",
           `Cita agendada para ${manualBookingForm.name} a las ${manualBookingForm.time}`
         );
-        setManualBookingForm({ name: "", phone: "", time: "" });
+        setManualBookingForm({ name: "", areaCode: "", phoneNumber: "", time: "" });
         setShowManualBooking(false);
       } else {
         showNotification(
@@ -279,6 +280,27 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
     setTimeout(() => setNotification(null), 5000);
   };
 
+  // Cargar clientes del backend
+  const loadClients = async () => {
+    try {
+      const response = await clientService.getClients();
+      if (response.success && response.data) {
+        setClients(Array.isArray(response.data) ? response.data : []);
+      } else {
+        console.error("Error cargando clientes:", response.error);
+        showNotification("error", "Error al cargar los clientes");
+      }
+    } catch (error) {
+      console.error("Error cargando clientes:", error);
+      showNotification("error", "Error al cargar los clientes");
+    }
+  };
+
+  // Cargar clientes al montar el componente
+  React.useEffect(() => {
+    loadClients();
+  }, []);
+
   const availableSlots = selectedDateSlots.filter((slot) => slot.available);
   const occupiedSlots = selectedDateSlots.filter((slot) => !slot.available);
 
@@ -286,6 +308,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
   const todaySlots = getAvailableSlots(today);
   console.log("Today Slots:", todaySlots);
   const todayAvailableSlots = todaySlots.filter((slot) => slot.available);
+  const todayOccupiedSlots = todaySlots.filter((slot) => !slot.available);
 
   // Generate timeline hours (9 AM to 6 PM)
   const timelineHours: {
@@ -361,11 +384,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
     }
   };
 
-  const handleScroll = () => {
-    if (scrollContainerRef.current) {
-      setScrollPosition(scrollContainerRef.current.scrollLeft);
-    }
-  };
 
   const renderWeeklyView = () => (
     <div className="grid gap-8">
@@ -391,7 +409,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
               scrollbarWidth: "none",
               msOverflowStyle: "none",
             }}
-            onScroll={handleScroll}
           >
             {allDays.map((day: Date, index: number) => {
               const isSelected =
@@ -715,34 +732,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
     </div>
   );
 
-  // Obtener clientes únicos
-  const getUniqueClients = () => {
-    const clientsMap = new Map();
-    allBookings.forEach((booking) => {
-      const clientName = booking.client?.name || booking.name;
-      const clientPhone = booking.client?.phone || booking.phone;
-      const key = clientPhone;
-      if (!clientsMap.has(key)) {
-        clientsMap.set(key, {
-          name: clientName,
-          phone: clientPhone,
-          totalBookings: 1,
-          lastVisit: booking.date,
-          firstVisit: booking.date,
-        });
-      } else {
-        const client = clientsMap.get(key);
-        client.totalBookings++;
-        if (booking.date > client.lastVisit) {
-          client.lastVisit = booking.date;
-        }
-        if (booking.date < client.firstVisit) {
-          client.firstVisit = booking.date;
-        }
-      }
-    });
-    return Array.from(clientsMap.values());
-  };
 
   // Filtrar historial
   const getFilteredHistory = () => {
@@ -774,7 +763,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
 
   // Filtrar clientes
   const getFilteredClients = () => {
-    const clients = getUniqueClients();
     if (searchTerm) {
       return clients.filter(
         (client) =>
@@ -782,25 +770,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
           client.phone.includes(searchTerm)
       );
     }
-    return clients.sort((a, b) => b.lastVisit.localeCompare(a.lastVisit));
+    return clients.sort((a, b) => {
+      const aLastVisit = a.lastVisitDate || a.createdAt;
+      const bLastVisit = b.lastVisitDate || b.createdAt;
+      return bLastVisit.localeCompare(aLastVisit);
+    });
   };
 
-  // Filtrar clientes predefinidos
-  const getFilteredPredefinedClients = () => {
-    if (searchTerm) {
-      return predefinedClients.filter(
-        (client) =>
-          client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          client.phone.includes(searchTerm)
-      );
-    }
-    return predefinedClients.sort((a, b) => a.name.localeCompare(b.name));
-  };
 
   // Estadísticas
   const getStats = () => {
     const totalBookings = allBookings.length;
-    const uniqueClients = getUniqueClients().length;
+    const uniqueClients = clients.length;
     const thisMonth = new Date()
       .toLocaleDateString("es-AR", {
         timeZone: "America/Argentina/Buenos_Aires",
@@ -833,39 +814,111 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
 
   const stats = getStats();
 
-  // Manejar agregar cliente
-  const handleAddClient = () => {
-    if (!newClient.name || !newClient.phone) {
-      showNotification("error", "Nombre y teléfono son obligatorios");
-      return;
-    }
+  // Funciones para gestión de clientes
+  const handleOpenAddClient = () => {
+    setClientModalMode("add");
+    setEditingClientIndex(null);
+    setShowClientModal(true);
+  };
 
-    addPredefinedClient(
-      newClient as Omit<Client, "totalBookings" | "lastVisit" | "firstVisit">
-    );
-    setNewClient({
-      name: "",
-      phone: "",
-      isRegular: false,
-    });
-    setShowAddClient(false);
+  const handleOpenEditClient = (clientIndex: number) => {
+    setClientModalMode("edit");
+    setEditingClientIndex(clientIndex);
+    setShowClientModal(true);
+  };
+
+  const handleCloseClientModal = () => {
+    setShowClientModal(false);
+    setEditingClientIndex(null);
+  };
+
+  const handleClientSubmit = async (clientData: { name: string; areaCode: string; phoneNumber: string }) => {
+    const fullPhone = `+54 9 ${clientData.areaCode} ${clientData.phoneNumber}`;
+    
+    console.log("🔍 handleClientSubmit llamado con:", { clientData, fullPhone, mode: clientModalMode });
+    
+    try {
+      if (clientModalMode === "add") {
+        console.log("📤 Enviando request para crear cliente...");
+        const response = await clientService.createClient({
+          name: clientData.name,
+          phone: fullPhone,
+        });
+
+        console.log("📥 Respuesta del servidor:", response);
+
+        if (response.success) {
+          console.log("✅ Cliente creado exitosamente");
     showNotification("success", "Cliente agregado exitosamente");
-  };
+          // Recargar clientes del backend
+          await loadClients();
+          handleCloseClientModal(); // Cerrar modal solo después del éxito
+        } else {
+          console.log("❌ Error del servidor:", response.error);
+          showNotification("error", response.error || "Error al crear el cliente");
+        }
+      } else if (clientModalMode === "edit" && editingClientIndex !== null) {
+        const client = getFilteredClients()[editingClientIndex];
+        if (client && client.id) {
+          console.log("📤 Enviando request para actualizar cliente...");
+          const response = await clientService.updateClient(client.id, {
+            name: clientData.name,
+            phone: fullPhone,
+          });
 
-  // Manejar editar cliente
-  const handleEditClient = (index: number, client: Client) => {
-    updatePredefinedClient(index, client);
-    setEditingClient(null);
-    showNotification("success", "Cliente actualizado exitosamente");
-  };
+          console.log("📥 Respuesta del servidor:", response);
 
-  // Manejar eliminar cliente
-  const handleDeleteClient = (index: number, clientName: string) => {
-    if (window.confirm(`¿Estás seguro de eliminar a ${clientName}?`)) {
-      deletePredefinedClient(index);
-      showNotification("success", "Cliente eliminado exitosamente");
+          if (response.success) {
+            console.log("✅ Cliente actualizado exitosamente");
+            showNotification("success", "Cliente actualizado exitosamente");
+            // Recargar clientes del backend
+            await loadClients();
+            handleCloseClientModal(); // Cerrar modal solo después del éxito
+          } else {
+            console.log("❌ Error del servidor:", response.error);
+            showNotification("error", response.error || "Error al actualizar el cliente");
+          }
+        }
+      }
+    } catch (error) {
+      console.error("💥 Error en operación de cliente:", error);
+      showNotification("error", "Error al procesar la solicitud");
     }
   };
+
+  const handleDeleteClient = (clientIndex: number, client: any) => {
+    setDeleteClientModal({
+      isOpen: true,
+      client,
+      clientIndex,
+    });
+  };
+
+  const confirmDeleteClient = async () => {
+    if (!deleteClientModal.client || deleteClientModal.clientIndex === null) return;
+
+    try {
+      const response = await clientService.deleteClient(deleteClientModal.client.id);
+
+      if (response.success) {
+        showNotification("success", "Cliente eliminado exitosamente");
+        // Recargar clientes del backend
+        await loadClients();
+      } else {
+        showNotification("error", response.error || "Error al eliminar el cliente");
+      }
+    } catch (error) {
+      console.error("Error eliminando cliente:", error);
+      showNotification("error", "Error al eliminar el cliente");
+    } finally {
+      setDeleteClientModal({
+        isOpen: false,
+        client: null,
+        clientIndex: null,
+      });
+    }
+  };
+
 
   // Manejar actualización de configuración
   const handleConfigUpdate = async (newConfig: SalonConfig) => {
@@ -874,7 +927,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
       const configResponse = await configService.updateConfig({
         slotDuration: newConfig.slotDuration,
         advanceBookingDays: newConfig.advanceBookingDays,
-        defaultServices: newConfig.defaultServices,
         salonName: newConfig.salonName || "Salón Invictus",
         timezone: newConfig.timezone || "America/Argentina/Buenos_Aires",
       });
@@ -902,7 +954,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
     { id: "weekly", label: "Agenda Semanal", icon: Clock },
     { id: "history", label: "Historial", icon: History },
     { id: "clients", label: "Clientes", icon: Users },
-    { id: "predefined-clients", label: "Lista de Clientes", icon: UserPlus },
     { id: "stats", label: "Estadísticas", icon: BarChart3 },
     { id: "config", label: "Configuración", icon: Settings },
   ];
@@ -1421,6 +1472,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
           <h3 className="text-lg font-semibold text-gray-800">
             Gestión de Clientes
           </h3>
+          <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
@@ -1430,8 +1482,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full sm:w-auto"
             />
+            </div>
+            <button
+              onClick={handleOpenAddClient}
+              className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors flex items-center gap-2"
+            >
+              <UserPlus className="w-4 h-4" />
+              Agregar Cliente
+            </button>
           </div>
         </div>
+
 
         {filteredClients.length === 0 ? (
           <div className="text-center py-12">
@@ -1477,16 +1538,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
                 </div>
 
                 <div className="mt-3 pt-3 border-t border-gray-200">
+                  <div className="flex gap-2">
                   <button
                     onClick={() => {
                       setSearchTerm(client.name);
                       updateCurrentView("history");
                     }}
-                    className="w-full bg-blue-50 text-blue-600 px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
+                      className="flex-1 bg-blue-50 text-blue-600 px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
                   >
                     <Eye className="w-4 h-4" />
-                    Ver historial
+                      Historial
                   </button>
+            <button
+                      onClick={() => handleOpenEditClient(index)}
+                      className="bg-green-50 text-green-600 px-3 py-2 rounded-lg hover:bg-green-100 transition-colors flex items-center justify-center"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteClient(index, client)}
+                      className="bg-red-50 text-red-600 px-3 py-2 rounded-lg hover:bg-red-100 transition-colors flex items-center justify-center"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                 </div>
               </div>
             ))}
@@ -1496,228 +1571,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
     );
   };
 
-  const renderPredefinedClientsView = () => {
-    const filteredClients = getFilteredPredefinedClients();
 
-    return (
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-          <h3 className="text-lg font-semibold text-gray-800">
-            Lista de Clientes Predefinidos
-          </h3>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar cliente..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full sm:w-auto"
-              />
-            </div>
-            <button
-              onClick={() => setShowAddClient(true)}
-              className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2"
-            >
-              <UserPlus className="w-4 h-4" />
-              Agregar Cliente
-            </button>
-          </div>
-        </div>
-
-        {/* Add Client Form */}
-        {showAddClient && (
-          <div className="bg-green-50 rounded-lg p-4 mb-6 border border-green-200">
-            <h4 className="font-medium text-green-800 mb-4">
-              Agregar Nuevo Cliente
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <input
-                type="text"
-                placeholder="Nombre completo *"
-                value={newClient.name || ""}
-                onChange={(e) =>
-                  setNewClient({ ...newClient, name: e.target.value })
-                }
-                className="px-3 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              />
-              <input
-                type="tel"
-                placeholder="Teléfono *"
-                value={newClient.phone || ""}
-                onChange={(e) =>
-                  setNewClient({ ...newClient, phone: e.target.value })
-                }
-                className="px-3 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              />
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="isRegular"
-                  checked={newClient.isRegular || false}
-                  onChange={(e) =>
-                    setNewClient({ ...newClient, isRegular: e.target.checked })
-                  }
-                  className="rounded border-green-300 text-green-600 focus:ring-green-500"
-                />
-                <label htmlFor="isRegular" className="text-sm text-green-700">
-                  Cliente regular
-                </label>
-              </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <button
-                onClick={handleAddClient}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex-1"
-              >
-                Agregar Cliente
-              </button>
-              <button
-                onClick={() => {
-                  setShowAddClient(false);
-                  setNewClient({
-                    name: "",
-                    phone: "",
-                    isRegular: false,
-                  });
-                }}
-                className="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition-colors"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        )}
-
-        {filteredClients.length === 0 ? (
-          <div className="text-center py-12">
-            <UserPlus className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 text-lg">No hay clientes registrados</p>
-            <p className="text-gray-400 text-sm">
-              Agrega tus primeros clientes para comenzar
-            </p>
-          </div>
-        ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredClients.map((client, index) => (
-              <div
-                key={index}
-                className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-              >
-                {editingClient === index ? (
-                  <div className="space-y-3">
-                    <input
-                      type="text"
-                      value={client.name}
-                      onChange={(e) =>
-                        updatePredefinedClient(index, {
-                          ...client,
-                          name: e.target.value,
-                        })
-                      }
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                    />
-                    <input
-                      type="tel"
-                      value={client.phone}
-                      onChange={(e) =>
-                        updatePredefinedClient(index, {
-                          ...client,
-                          phone: e.target.value,
-                        })
-                      }
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                    />
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={client.isRegular}
-                        onChange={(e) =>
-                          updatePredefinedClient(index, {
-                            ...client,
-                            isRegular: e.target.checked,
-                          })
-                        }
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <label className="text-sm text-gray-700">
-                        Cliente regular
-                      </label>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleEditClient(index, client)}
-                        className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600 transition-colors flex items-center gap-1"
-                      >
-                        <Save className="w-3 h-3" />
-                        Guardar
-                      </button>
-                      <button
-                        onClick={() => setEditingClient(null)}
-                        className="bg-gray-300 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-400 transition-colors"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            client.isRegular ? "bg-green-100" : "bg-gray-100"
-                          }`}
-                        >
-                          <User
-                            className={`w-5 h-5 ${
-                              client.isRegular
-                                ? "text-green-600"
-                                : "text-gray-600"
-                            }`}
-                          />
-                        </div>
-                        <div>
-                          <h4 className="font-semibold text-gray-800">
-                            {client.name}
-                          </h4>
-                          <p className="text-sm text-gray-600">
-                            {client.phone}
-                          </p>
-                        </div>
-                      </div>
-                      {client.isRegular && (
-                        <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                          Regular
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setEditingClient(index)}
-                        className="flex-1 bg-blue-50 text-blue-600 px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <Edit className="w-4 h-4" />
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => handleDeleteClient(index, client.name)}
-                        className="bg-red-50 text-red-600 px-3 py-2 rounded-lg hover:bg-red-100 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
 
   const renderStatsView = () => (
     <div className="space-y-6">
@@ -1773,8 +1627,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
             <div>
               <h3 className="text-2xl font-bold text-gray-800">
                 {Math.round(
-                  (occupiedSlots.length /
-                    (occupiedSlots.length + availableSlots.length)) *
+                  (todayOccupiedSlots.length /
+                    (todayOccupiedSlots.length + todayAvailableSlots.length)) *
                     100
                 ) || 0}
                 %
@@ -2027,36 +1881,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
           </div>
         </div>
 
-        {/* Services */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-6">
-            Servicios Disponibles
-          </h3>
-          <div className="space-y-2">
-            {salonConfig.defaultServices.map((service, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-              >
-                <span className="text-gray-800">{service}</span>
-                <button
-                  onClick={() => {
-                    const newServices = salonConfig.defaultServices.filter(
-                      (_, i) => i !== index
-                    );
-                    handleConfigUpdate({
-                      ...salonConfig,
-                      defaultServices: newServices,
-                    });
-                  }}
-                  className="text-red-500 hover:bg-red-50 p-1 rounded"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
 
         {/* Botones de acción */}
         <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
@@ -2185,13 +2009,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
                     <div className="flex items-center gap-4">
                       <div className="text-center">
                         <div className="text-2xl font-bold text-blue-600">
-                          {occupiedSlots.length}
+                          {todayOccupiedSlots.length}
                         </div>
                         <div className="text-sm text-gray-600">Ocupados</div>
                       </div>
                       <div className="text-center">
                         <div className="text-2xl font-bold text-green-600">
-                          {availableSlots.length}
+                          {todayAvailableSlots.length}
                         </div>
                         <div className="text-sm text-gray-600">Disponibles</div>
                       </div>
@@ -2206,8 +2030,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
             {currentView === "weekly" && renderWeeklyView()}
             {currentView === "history" && renderHistoryView()}
             {currentView === "clients" && renderClientsView()}
-            {currentView === "predefined-clients" &&
-              renderPredefinedClientsView()}
             {currentView === "stats" && renderStatsView()}
             {currentView === "config" && renderConfigView()}
           </div>
@@ -2266,19 +2088,44 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Número de Teléfono
                 </label>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center">
+                    <span className="bg-gray-100 text-gray-600 px-3 py-3 border border-r-0 border-gray-300 rounded-l-lg">
+                      0
+                    </span>
                 <input
-                  type="tel"
-                  placeholder="Ej: +54 9 11 1234-5678"
-                  value={manualBookingForm.phone}
+                      type="text"
+                      placeholder="11"
+                      value={manualBookingForm.areaCode}
                   onChange={(e) =>
                     setManualBookingForm({
                       ...manualBookingForm,
-                      phone: e.target.value,
+                          areaCode: e.target.value,
                     })
                   }
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      className="w-24 px-3 py-3 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                   required
                 />
+                  </div>
+                  <div className="flex items-center">
+                    <span className="bg-gray-100 text-gray-600 px-3 py-3 border border-r-0 border-gray-300 rounded-l-lg">
+                      15
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="1234-5678"
+                      value={manualBookingForm.phoneNumber}
+                      onChange={(e) =>
+                        setManualBookingForm({
+                          ...manualBookingForm,
+                          phoneNumber: e.target.value,
+                        })
+                      }
+                      className="flex-1 px-3 py-3 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      required
+                    />
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -2355,6 +2202,31 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToClient }) => {
         confirmText="Sí, Cancelar"
         cancelText="No, Mantener"
         type="warning"
+      />
+
+      {/* Modal de confirmación para eliminar clientes */}
+      <ConfirmModal
+        isOpen={deleteClientModal.isOpen}
+        onClose={() => setDeleteClientModal({ isOpen: false, client: null, clientIndex: null })}
+        onConfirm={confirmDeleteClient}
+        title="Eliminar Cliente"
+        message={
+          deleteClientModal.client
+            ? `¿Estás seguro de que quieres eliminar permanentemente al cliente "${deleteClientModal.client.name}"?\n\nEsta acción no se puede deshacer y se eliminarán todos los datos asociados al cliente.`
+            : ""
+        }
+        confirmText="Sí, Eliminar"
+        cancelText="Cancelar"
+        type="error"
+      />
+
+      {/* Client Modal */}
+      <ClientModal
+        isOpen={showClientModal}
+        onClose={handleCloseClientModal}
+        onSubmit={handleClientSubmit}
+        client={editingClientIndex !== null ? getFilteredClients()[editingClientIndex] : null}
+        mode={clientModalMode}
       />
     </div>
   );

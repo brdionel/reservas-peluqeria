@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { User, Phone, Scissors, Calendar, Clock, Check } from "lucide-react";
+import { User, Phone, Calendar, Clock, Check } from "lucide-react";
 import { BookingData } from "../types/booking";
+import { useBookingData } from "../hooks/useBookingData";
 
 interface BookingFormProps {
   selectedDate: Date;
@@ -13,9 +14,11 @@ export const BookingForm: React.FC<BookingFormProps> = ({
   selectedTime,
   onBookingSubmit,
 }) => {
+  const { salonConfig } = useBookingData();
   const [formData, setFormData] = useState({
     name: "",
-    phone: "",
+    areaCode: "",
+    phoneNumber: "",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -24,17 +27,38 @@ export const BookingForm: React.FC<BookingFormProps> = ({
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {};
 
-    // Validar nombre (mínimo 2 palabras)
+    // Validar nombre
     if (!formData.name.trim()) {
       newErrors.name = "El nombre es requerido";
     }
 
-    // Validar teléfono (formato básico)
-    const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
-    if (!formData.phone.trim()) {
-      newErrors.phone = "El teléfono es requerido";
-    } else if (!phoneRegex.test(formData.phone.replace(/[\s\-\(\)]/g, ""))) {
-      newErrors.phone = "Ingresa un número de teléfono válido";
+    // Validar código de área (2-4 dígitos sin 0)
+    const areaCodeRegex = /^[1-9]\d{1,3}$/;
+    if (!formData.areaCode.trim()) {
+      newErrors.areaCode = "El código de área es requerido";
+    } else if (!areaCodeRegex.test(formData.areaCode)) {
+      newErrors.areaCode = "Ingresa un código de área válido (ej: 11, 236)";
+    }
+
+    // Validar número (6-8 dígitos sin 15)
+    const phoneNumberRegex = /^[2-9]\d{5,7}$/;
+    if (!formData.phoneNumber.trim()) {
+      newErrors.phoneNumber = "El número es requerido";
+    } else if (!phoneNumberRegex.test(formData.phoneNumber)) {
+      newErrors.phoneNumber = "Ingresa un número válido (ej: 12345678)";
+    }
+
+    // Validar que la fecha esté dentro del rango permitido
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const advanceBookingDays = salonConfig?.advanceBookingDays || 30;
+    const maxDate = new Date(today);
+    maxDate.setDate(today.getDate() + advanceBookingDays);
+    
+    if (selectedDate < today) {
+      newErrors.date = "No se pueden hacer reservas en fechas pasadas";
+    } else if (selectedDate > maxDate) {
+      newErrors.date = `Solo se pueden hacer reservas hasta ${maxDate.toLocaleDateString('es-AR')} (${advanceBookingDays} días de anticipación)`;
     }
 
     setErrors(newErrors);
@@ -52,8 +76,12 @@ export const BookingForm: React.FC<BookingFormProps> = ({
     // Simular loading
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
+    // Formatear el teléfono completo para la base de datos
+    const fullPhone = `+54 9 ${formData.areaCode} ${formData.phoneNumber}`;
+    
     const bookingData: BookingData = {
-      ...formData,
+      name: formData.name,
+      phone: fullPhone,
       date: (() => {
         const pad = (n: number) => n.toString().padStart(2, "0");
         return `${selectedDate.getFullYear()}-${pad(
@@ -93,6 +121,11 @@ export const BookingForm: React.FC<BookingFormProps> = ({
           <Clock className="w-4 h-4" />
           <span className="font-medium">{selectedTime}</span>
         </div>
+        {errors.date && (
+          <div className="mt-2 p-2 bg-red-100 border border-red-300 rounded text-red-700 text-sm">
+            {errors.date}
+          </div>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -121,21 +154,63 @@ export const BookingForm: React.FC<BookingFormProps> = ({
             <Phone className="w-4 h-4 inline mr-2" />
             Teléfono
           </label>
-          <input
-            type="tel"
-            value={formData.phone}
-            onChange={(e) =>
-              setFormData({ ...formData, phone: e.target.value })
-            }
-            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-black-500 focus:border-black-500 transition-colors ${
-              errors.phone ? "border-red-300 bg-red-50" : "border-gray-300"
-            }`}
-            placeholder="Tu número de teléfono"
-            required
-          />
-          {errors.phone && (
-            <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
-          )}
+          <div className="flex gap-2">
+            <div className="w-24">
+              <label className="block text-xs text-gray-500 mb-1">
+                Código de Área
+              </label>
+              <div className="flex items-center">
+                <div className="bg-gray-100 text-gray-600 font-medium px-2 py-3 border border-r-0 rounded-l-lg border-gray-300 text-sm">
+                  0
+                </div>
+                <input
+                  type="tel"
+                  value={formData.areaCode}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 4);
+                    setFormData({ ...formData, areaCode: value });
+                  }}
+                  className={`w-full px-2 py-3 border rounded-r-lg focus:ring-2 focus:ring-black-500 focus:border-black-500 transition-colors text-sm ${
+                    errors.areaCode ? "border-red-300 bg-red-50" : "border-gray-300"
+                  }`}
+                  placeholder="11"
+                  required
+                />
+              </div>
+              {errors.areaCode && (
+                <p className="text-red-500 text-xs mt-1">{errors.areaCode}</p>
+              )}
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs text-gray-500 mb-1">
+                Número
+              </label>
+              <div className="flex items-center">
+                <div className="bg-gray-100 text-gray-600 font-medium px-2 py-3 border border-r-0 rounded-l-lg border-gray-300 text-sm">
+                  15
+                </div>
+                <input
+                  type="tel"
+                  value={formData.phoneNumber}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 8);
+                    setFormData({ ...formData, phoneNumber: value });
+                  }}
+                  className={`flex-1 px-3 py-3 border rounded-r-lg focus:ring-2 focus:ring-black-500 focus:border-black-500 transition-colors text-sm ${
+                    errors.phoneNumber ? "border-red-300 bg-red-50" : "border-gray-300"
+                  }`}
+                  placeholder="12345678"
+                  required
+                />
+              </div>
+              {errors.phoneNumber && (
+                <p className="text-red-500 text-xs mt-1">{errors.phoneNumber}</p>
+              )}
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            💡 Ingresa el código de área sin el 0 y el número sin el 15
+          </p>
         </div>
 
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -150,7 +225,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
 
         <button
           type="submit"
-          disabled={isSubmitting || !formData.name || !formData.phone}
+          disabled={isSubmitting || !formData.name || !formData.areaCode || !formData.phoneNumber}
           className="w-full bg-black text-white py-3 px-6 rounded-lg font-medium hover:bg-black-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
         >
           {isSubmitting ? (

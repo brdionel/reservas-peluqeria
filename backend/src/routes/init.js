@@ -47,7 +47,6 @@ router.post('/init-database', async (req, res) => {
           advanceBookingDays: 30,
           salonName: 'Salón de Belleza',
           timezone: 'America/Argentina/Buenos_Aires',
-          defaultServices: JSON.stringify(['Corte', 'Color', 'Peinado'])
         }
       });
       

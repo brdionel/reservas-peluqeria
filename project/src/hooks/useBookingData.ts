@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BookingData, Client, SalonConfig } from "../types/booking";
+import { BookingData, SalonConfig } from "../types/booking";
 import { configService, bookingService } from '../services/api';
 
 interface TimeSlot {
@@ -11,7 +11,6 @@ interface TimeSlot {
 
 export const useBookingData = () => {
   const [bookings, setBookings] = useState<BookingData[]>([]);
-  const [predefinedClients, setPredefinedClients] = useState<Client[]>([]);
   const [salonConfig, setSalonConfig] = useState<SalonConfig | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -46,7 +45,6 @@ export const useBookingData = () => {
             workingHours: backendData.workingHours || [],
             slotDuration: backendData.slotDuration || 30,
             advanceBookingDays: backendData.advanceBookingDays || 30,
-            defaultServices: backendData.defaultServices || [],
             salonName: backendData.salonName || "Salón Invictus",
             timezone: backendData.timezone || "America/Argentina/Buenos_Aires"
           };
@@ -61,18 +59,14 @@ export const useBookingData = () => {
         if (bookingsResponse.success && bookingsResponse.data) {
           setBookings(bookingsResponse.data as BookingData[]);
         } else {
-          // Si falla, usar datos de ejemplo
-          initializeWithSampleData();
+          // Si falla, inicializar con array vacío
+          setBookings([]);
         }
-
-        // Por ahora, usar clientes de ejemplo (puedes implementar clientService después)
-        initializeWithSampleClients();
         
       } catch (error) {
         console.error("Error loading data from backend:", error);
-        // Si hay error, inicializar con datos de ejemplo
-        initializeWithSampleData();
-        initializeWithSampleClients();
+        // Si hay error, inicializar con valores por defecto
+        setBookings([]);
         initializeWithDefaultConfig();
       }
 
@@ -82,140 +76,7 @@ export const useBookingData = () => {
     loadDataFromBackend();
   }, []);
 
-  // Inicializar con datos de ejemplo
-  const initializeWithSampleData = () => {
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const nextWeek = new Date(today);
-    nextWeek.setDate(nextWeek.getDate() + 7);
 
-    const sampleBookings: BookingData[] = [
-      // Ayer
-      {
-        name: "Bruno Vicente",
-        phone: "+54 9 11 1234-5678",
-        date: yesterday.toLocaleDateString("en-CA", {
-          timeZone: "America/Argentina/Buenos_Aires"
-        }),
-        time: "10:00",
-      },
-      {
-        name: "Maxi Nuñezz",
-        phone: "+54 9 11 2345-6789",
-        date: yesterday.toLocaleDateString("en-CA", {
-          timeZone: "America/Argentina/Buenos_Aires"
-        }),
-        time: "14:30",
-      },
-      // Hoy
-      {
-        name: "Pipa Aramburu",
-        phone: "+54 9 11 3456-7890",
-        date: today.toLocaleDateString("en-CA", {
-          timeZone: "America/Argentina/Buenos_Aires"
-        }),
-        time: "11:00",
-      },
-      {
-        name: "Maxi Lorber",
-        phone: "+54 9 11 4567-8901",
-        date: today.toLocaleDateString("en-CA", {
-          timeZone: "America/Argentina/Buenos_Aires"
-        }),
-        time: "15:30",
-      },
-      // Mañana
-      {
-        name: "Naza Leidi",
-        phone: "+54 9 11 5678-9012",
-        date: tomorrow.toLocaleDateString("en-CA", {
-          timeZone: "America/Argentina/Buenos_Aires"
-        }),
-        time: "09:30",
-      },
-      // Próxima semana
-      {
-        name: "Alejo",
-        phone: "+54 9 11 6789-0123",
-        date: nextWeek.toLocaleDateString("en-CA", {
-          timeZone: "America/Argentina/Buenos_Aires"
-        }),
-        time: "16:00",
-      },
-      // Más datos históricos
-      {
-        name: "Bruno Vicente",
-        phone: "+54 9 11 1234-5678",
-        date: "2024-12-15",
-        time: "11:30",
-      },
-      {
-        name: "Pipa Aramburu",
-        phone: "+54 9 11 3456-7890",
-        date: "2024-12-10",
-        time: "14:00",
-      },
-      {
-        name: "Maxi Nuñezz",
-        phone: "+54 9 11 2345-6789",
-        date: "2024-12-08",
-        time: "10:30",
-      },
-      {
-        name: "Maxi Lorber",
-        phone: "+54 9 11 4567-8901",
-        date: "2024-12-05",
-        time: "16:30",
-      },
-    ];
-
-    setBookings(sampleBookings);
-    localStorage.setItem("salon-bookings", JSON.stringify(sampleBookings));
-  };
-
-  // Inicializar con clientes de ejemplo
-  const initializeWithSampleClients = () => {
-    const sampleClients: Client[] = [
-      {
-        name: "Pipa Aramburu",
-        phone: "+54 9 11 1234-5678",
-        totalBookings: 8,
-        lastVisit: "2024-12-20",
-        firstVisit: "2024-06-15",
-        isRegular: true,
-      },
-      {
-        name: "Maxi Nuñez",
-        phone: "+54 9 11 2345-6789",
-        totalBookings: 12,
-        lastVisit: "2024-12-18",
-        firstVisit: "2024-03-10",
-        isRegular: true,
-      },
-      {
-        name: "Maxi Lorber",
-        phone: "+54 9 11 3456-7890",
-        totalBookings: 6,
-        lastVisit: "2024-12-22",
-        firstVisit: "2024-08-05",
-        isRegular: true,
-      },
-      {
-        name: "Bruno Vicente",
-        phone: "+54 9 11 8901-2345",
-        totalBookings: 7,
-        lastVisit: "2024-12-10",
-        firstVisit: "2024-07-22",
-        isRegular: true,
-      },
-    ];
-
-    setPredefinedClients(sampleClients);
-    localStorage.setItem("salon-clients", JSON.stringify(sampleClients));
-  };
 
   // Inicializar configuración por defecto
   const initializeWithDefaultConfig = () => {
@@ -231,14 +92,6 @@ export const useBookingData = () => {
       ],
       slotDuration: 30,
       advanceBookingDays: 30,
-      defaultServices: [
-        "Corte de Cabello",
-        "Lavado y Peinado",
-        "Corte + Lavado",
-        "Barba",
-        "Corte + Barba",
-        "Tratamiento Capilar",
-      ],
       salonName: "Salón Invictus",
       timezone: "America/Argentina/Buenos_Aires",
     };
@@ -254,12 +107,6 @@ export const useBookingData = () => {
     }
   }, [bookings, isLoaded]);
 
-  // Guardar clientes en localStorage
-  useEffect(() => {
-    if (isLoaded && predefinedClients.length > 0) {
-      localStorage.setItem("salon-clients", JSON.stringify(predefinedClients));
-    }
-  }, [predefinedClients, isLoaded]);
 
   // Guardar configuración en localStorage
   useEffect(() => {
@@ -391,10 +238,14 @@ export const useBookingData = () => {
         return false; // No se pueden hacer reservas en fechas pasadas
       }
 
-      // Verificar que no sea domingo
-      if (bookingDate.getDay() === 0) {
-        console.error('Domingo cerrado');
-        return false; // Domingo cerrado
+      // Verificar que la fecha esté dentro del rango permitido
+      const advanceBookingDays = salonConfig?.advanceBookingDays || 30;
+      const maxDate = new Date(today);
+      maxDate.setDate(today.getDate() + advanceBookingDays);
+
+      if (bookingDate > maxDate) {
+        console.error(`No se pueden hacer reservas más allá de ${maxDate.toLocaleDateString('es-AR')} (${advanceBookingDays} días de anticipación)`);
+        return false; // No se pueden hacer reservas más allá del límite
       }
 
       // Hacer llamada al backend
@@ -452,28 +303,6 @@ export const useBookingData = () => {
     return slots.some((slot) => slot.available);
   };
 
-  // Gestión de clientes predefinidos
-  const addPredefinedClient = (
-    client: Omit<Client, "totalBookings" | "lastVisit" | "firstVisit">
-  ) => {
-    const newClient: Client = {
-      ...client,
-      totalBookings: 0,
-      lastVisit: "",
-      firstVisit: "",
-    };
-    setPredefinedClients((prev) => [...prev, newClient]);
-  };
-
-  const updatePredefinedClient = (index: number, client: Client) => {
-    setPredefinedClients((prev) =>
-      prev.map((c, i) => (i === index ? client : c))
-    );
-  };
-
-  const deletePredefinedClient = (index: number) => {
-    setPredefinedClients((prev) => prev.filter((_, i) => i !== index));
-  };
 
   // Actualizar configuración del salón
   const updateSalonConfig = (config: SalonConfig) => {
@@ -483,7 +312,6 @@ export const useBookingData = () => {
   return {
     bookings,
     setBookings,
-    predefinedClients,
     salonConfig,
     isLoaded,
     getAvailableSlots,
@@ -492,9 +320,6 @@ export const useBookingData = () => {
     getAllBookings,
     getBookingsByDate,
     hasAvailability,
-    addPredefinedClient,
-    updatePredefinedClient,
-    deletePredefinedClient,
     updateSalonConfig,
   };
 };

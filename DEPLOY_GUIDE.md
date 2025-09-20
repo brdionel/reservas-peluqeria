@@ -126,18 +126,19 @@ En Netlify, crea un archivo `_redirects` en la carpeta `project/public`:
 
 ## 🔄 Paso 6: Migrar datos existentes (opcional)
 
-Si tienes datos en SQLite que quieres migrar:
+Si tienes datos existentes que quieres migrar a Supabase:
 
-### 6.1 Localmente
+### 6.1 Configurar Supabase
+1. Crea un proyecto en [Supabase](https://supabase.com)
+2. Obtén la URL de conexión de tu base de datos
+3. Actualiza las variables de entorno con las credenciales de Supabase
+
+### 6.2 Migrar datos
 ```bash
 cd backend
-# Configura DATABASE_URL para PostgreSQL
+# Configura DATABASE_URL para Supabase
 npm run migrate:to-postgres
 ```
-
-### 6.2 En Railway
-1. Sube tu archivo `dev.db` a Railway
-2. Ejecuta el script de migración desde la consola de Railway
 
 ## ✅ Paso 7: Verificar el Deploy
 

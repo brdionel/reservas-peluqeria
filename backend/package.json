@@ -46,8 +46,6 @@
     "googleapis": "^156.0.0",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
-    "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.7",
     "zod": "^3.22.4"
   },
   "devDependencies": {

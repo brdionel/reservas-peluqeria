@@ -179,26 +179,39 @@ router.post('/', bookingLimiter, validateRequest(createBookingSchema), async (re
       }
     });
 
-    // Crear evento en Google Calendar
+    // Obtener calendarios activos para crear eventos
+    const activeCalendars = await prisma.googleCalendar.findMany({
+      where: { isActive: true },
+      select: { calendarId: true }
+    });
+
+    const calendarIds = activeCalendars.map(cal => cal.calendarId);
+
+    // Crear evento en múltiples calendarios de Google Calendar
     console.log('🔄 Intentando crear evento en Google Calendar para:', client.name, 'el', date, 'a las', time);
+    console.log('📅 Calendarios activos:', calendarIds);
+    
     const calendarResult = await createCalendarEvent({
       clientName: client.name,
       clientPhone: client.phone,
       date,
       time,
       service,
-      notes
+      notes,
+      calendarIds
     });
     console.log('📊 Resultado de Google Calendar:', calendarResult);
 
-    // Si se creó exitosamente en Google Calendar, actualizar la reserva con el ID del evento
+    // Si se creó exitosamente en Google Calendar, actualizar la reserva con los IDs de los eventos
     if (calendarResult.success) {
       await prisma.booking.update({
         where: { id: booking.id },
-        data: { googleEventId: calendarResult.eventId }
+        data: { 
+          googleEventIds: JSON.stringify(calendarResult.eventIds)
+        }
       });
       
-      console.log('✅ Reserva creada y sincronizada con Google Calendar');
+      console.log('✅ Reserva creada y sincronizada con Google Calendar en', calendarResult.eventIds.length, 'calendario(s)');
     } else {
       console.warn('⚠️ Reserva creada pero falló la sincronización con Google Calendar:', calendarResult.error);
     }
@@ -208,8 +221,10 @@ router.post('/', bookingLimiter, validateRequest(createBookingSchema), async (re
       data: {
         ...booking,
         googleCalendar: calendarResult.success ? {
-          eventId: calendarResult.eventId,
-          eventUrl: calendarResult.eventUrl
+          eventIds: calendarResult.eventIds,
+          primaryEventId: calendarResult.primaryEventId,
+          primaryEventUrl: calendarResult.primaryEventUrl,
+          results: calendarResult.results
         } : null
       },
       message: 'Reserva creada exitosamente' + (calendarResult.success ? ' y agregada al calendario' : '')
@@ -282,18 +297,34 @@ router.put('/:id', validateRequest(updateBookingSchema), async (req, res) => {
 
     // Actualizar evento en Google Calendar si existe
     let calendarResult = { success: true };
-    if (existingBooking.googleEventId && (updateData.date || updateData.time || updateData.service || updateData.notes)) {
-      calendarResult = await updateCalendarEvent(existingBooking.googleEventId, {
+    if (existingBooking.googleEventIds && (updateData.date || updateData.time || updateData.service || updateData.notes)) {
+      const eventIds = JSON.parse(existingBooking.googleEventIds);
+      
+      // Obtener calendarios activos
+      const activeCalendars = await prisma.googleCalendar.findMany({
+        where: { isActive: true },
+        select: { calendarId: true }
+      });
+      const calendarIds = activeCalendars.map(cal => cal.calendarId);
+      
+      calendarResult = await updateCalendarEvent(eventIds, {
         clientName: updatedBooking.client.name,
         clientPhone: updatedBooking.client.phone,
         date: updatedBooking.date,
         time: updatedBooking.time,
         service: updatedBooking.service,
         notes: updatedBooking.notes
-      });
+      }, calendarIds);
       
       if (calendarResult.success) {
-        console.log('✅ Evento actualizado en Google Calendar:', existingBooking.googleEventId);
+        console.log('✅ Evento actualizado en Google Calendar:', eventIds);
+        // Actualizar los IDs de los eventos si cambiaron
+        if (calendarResult.eventIds) {
+          await prisma.booking.update({
+            where: { id },
+            data: { googleEventIds: JSON.stringify(calendarResult.eventIds) }
+          });
+        }
       } else {
         console.warn('⚠️ Error al actualizar evento en Google Calendar:', calendarResult.error);
       }
@@ -302,7 +333,7 @@ router.put('/:id', validateRequest(updateBookingSchema), async (req, res) => {
     res.json({
       success: true,
       data: updatedBooking,
-      message: 'Reserva actualizada exitosamente' + (calendarResult.success && existingBooking.googleEventId ? ' y sincronizada con el calendario' : '')
+      message: 'Reserva actualizada exitosamente' + (calendarResult.success && existingBooking.googleEventIds ? ' y sincronizada con el calendario' : '')
     });
   } catch (error) {
     console.error('Error actualizando reserva:', error);
@@ -334,10 +365,19 @@ router.delete('/:id', async (req, res) => {
 
     // Eliminar evento de Google Calendar si existe
     let calendarResult = { success: true };
-    if (booking.googleEventId) {
-      calendarResult = await deleteCalendarEvent(booking.googleEventId);
+    if (booking.googleEventIds) {
+      const eventIds = JSON.parse(booking.googleEventIds);
+      
+      // Obtener calendarios activos
+      const activeCalendars = await prisma.googleCalendar.findMany({
+        where: { isActive: true },
+        select: { calendarId: true }
+      });
+      const calendarIds = activeCalendars.map(cal => cal.calendarId);
+      
+      calendarResult = await deleteCalendarEvent(eventIds, calendarIds);
       if (calendarResult.success) {
-        console.log('✅ Evento eliminado de Google Calendar:', booking.googleEventId);
+        console.log('✅ Evento eliminado de Google Calendar:', eventIds);
       } else {
         console.warn('⚠️ Error al eliminar evento de Google Calendar:', calendarResult.error);
       }
@@ -353,7 +393,7 @@ router.delete('/:id', async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Reserva eliminada exitosamente' + (calendarResult.success && booking.googleEventId ? ' y removida del calendario' : '')
+      message: 'Reserva eliminada exitosamente' + (calendarResult.success && booking.googleEventIds ? ' y removida del calendario' : '')
     });
   } catch (error) {
     console.error('Error eliminando reserva:', error);

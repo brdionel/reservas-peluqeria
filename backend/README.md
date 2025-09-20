@@ -6,9 +6,9 @@ Backend API para el sistema de reservas de la Peluquería Invictus.
 
 - **Node.js** + **Express** - Servidor web
 - **Prisma** - ORM para base de datos
-- **SQLite** - Base de datos (desarrollo)
+- **Supabase (PostgreSQL)** - Base de datos en la nube
 - **Zod** - Validación de datos
-- **JWT** - Autenticación (futuro)
+- **JWT** - Autenticación
 
 ## 📦 Instalación
 
@@ -76,7 +76,8 @@ npm run db:studio
 Copia `.env.example` a `.env` y configura:
 
 ```env
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres"
+DIRECT_URL="postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres"
 JWT_SECRET="tu_jwt_secret"
 PORT=3001
 FRONTEND_URL="http://localhost:5173"

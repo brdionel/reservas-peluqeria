@@ -46,7 +46,6 @@ export interface SalonConfig {
   workingHours: WorkingHours[];
   slotDuration: number; // minutes
   advanceBookingDays: number;
-  defaultServices: string[];
   salonName?: string;
   timezone?: string;
   createdAt?: string;
