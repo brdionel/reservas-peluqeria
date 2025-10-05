@@ -29,7 +29,7 @@ export function Hero({ onScrollToBooking }: HeroProps) {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-white">Invictus</h1>
-                <p className="text-white/80">Reserva tu cita online</p>
+                <p className="text-white/80">Reserva tu turno online</p>
               </div>
             </div> */}
             <div className="flex items-center gap-4">

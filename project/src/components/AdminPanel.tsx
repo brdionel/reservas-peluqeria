@@ -37,7 +37,9 @@ import {
   SalonConfig,
 } from "../types/booking";
 
-interface AdminPanelProps {}
+interface AdminPanelProps {
+  onBackToClient: () => void;
+}
 
 interface ManualBookingForm {
   name: string;
@@ -208,7 +210,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
           if (success) {
             showNotification(
               "success",
-              `Cita de ${clientName} cancelada exitosamente`
+              `Turno de ${clientName} cancelado exitosamente`
             );
           }
         } else {
@@ -259,7 +261,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
 
         showNotification(
           "success",
-          `Cita agendada para ${manualBookingForm.name} a las ${manualBookingForm.time}`
+          `Turno agendado para ${manualBookingForm.name} a las ${manualBookingForm.time}`
         );
         setManualBookingForm({ name: "", areaCode: "", phoneNumber: "", time: "" });
         setShowManualBooking(false);
@@ -452,7 +454,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                         isSelected ? "text-yellow-200" : "text-blue-600"
                       }`}
                     >
-                      {dayBookings.length} citas
+                      {dayBookings.length} turnos
                     </div>
                   ) : (
                     <div
@@ -484,13 +486,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
         <div className="bg-white rounded-xl shadow-lg p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-gray-800">
-              Citas - {formatDayName(selectedDate)}{" "}
+            Turnos - {formatDayName(selectedDate)}{" "}
               {formatDayDate(selectedDate)}
             </h3>
 
             <div className="flex items-center gap-2 text-black-600">
               <Calendar className="w-5 h-5" />
-              <span className="font-medium">{occupiedSlots.length} citas</span>
+              <span className="font-medium">{occupiedSlots.length} turnos</span>
             </div>
           </div>
           <div className={`grid gap-4 items-start`}>
@@ -564,7 +566,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                                     });
                                   }}
                                   className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                  title="Cancelar cita"
+                                  title="Cancelar turno"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
@@ -619,13 +621,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                 <>
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-lg font-semibold text-gray-800">
-                      Citas - {formatDayName(selectedDate)}{" "}
+                    Turnos - {formatDayName(selectedDate)}{" "}
                       {formatDayDate(selectedDate)}
                     </h3>
                     <div className="flex items-center gap-2 text-blue-600">
                       <Calendar className="w-5 h-5" />
                       <span className="font-medium">
-                        {occupiedSlots.length} citas
+                        {occupiedSlots.length} turnos
                       </span>
                     </div>
                   </div>
@@ -634,7 +636,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                     <div className="text-center py-12">
                       <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                       <p className="text-gray-500 text-lg">
-                        No hay citas para{" "}
+                        No hay turnos para{" "}
                         {formatDayName(selectedDate).toLowerCase()}
                       </p>
                     </div>
@@ -676,7 +678,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                                   })
                                 }
                                 className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                title="Cancelar cita"
+                                title="Cancelar turno"
                               >
                                 <Trash2 className="w-5 h-5" />
                               </button>
@@ -1121,13 +1123,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
           <div className="bg-white rounded-xl shadow-lg p-6">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-gray-800">
-                Citas de Hoy
+                Turnos de Hoy
               </h3>
 
               <div className="flex items-center gap-2 text-black-600">
                 <Calendar className="w-5 h-5" />
                 <span className="font-medium">
-                  {todayOccupiedSlots.length} citas
+                  {todayOccupiedSlots.length} turnos
                 </span>
               </div>
             </div>
@@ -1203,7 +1205,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                                       });
                                     }}
                                     className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                    title="Cancelar cita"
+                                    title="Cancelar turno"
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
@@ -1236,12 +1238,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
               <div className="bg-white rounded-xl shadow-lg p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-semibold text-gray-800">
-                    Citas de Hoy
+                    Turnos de Hoy
                   </h3>
                   <div className="flex items-center gap-2 text-blue-600">
                     <Calendar className="w-5 h-5" />
                     <span className="font-medium">
-                      {todayOccupiedSlots.length} citas
+                      {todayOccupiedSlots.length} turnos
                     </span>
                   </div>
                 </div>
@@ -1249,7 +1251,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                   <div className="text-center py-12">
                     <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                     <p className="text-gray-500 text-lg">
-                      No hay citas para hoy
+                      No hay turnos para hoy
                     </p>
                   </div>
                 ) : (
@@ -1290,7 +1292,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                                 })
                               }
                               className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Cancelar cita"
+                              title="Cancelar turno"
                             >
                               <Trash2 className="w-5 h-5" />
                             </button>
@@ -2036,13 +2038,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
         </main>
       </div>
 
-      {/* Modal para Agendar Nueva Cita */}
+      {/* Modal para Agendar Nuevo Turno */}
       {showManualBooking && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-gray-800">
-                Agendar Nueva Cita
+                Agendar Nueva Turno
               </h3>
               <button
                 onClick={() => setShowManualBooking(false)}
@@ -2176,7 +2178,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                   type="submit"
                   className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium"
                 >
-                  Confirmar Cita
+                  Confirmar Turno
                 </button>
               </div>
             </form>
@@ -2184,20 +2186,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
         </div>
       )}
 
-      {/* Modal de confirmación para cancelar citas */}
+      {/* Modal de confirmación para cancelar turnos */}
       <ConfirmModal
         isOpen={cancelModal.isOpen}
         onClose={() => setCancelModal({ isOpen: false, booking: null })}
         onConfirm={confirmCancelBooking}
-        title="Cancelar Cita"
+        title="Cancelar Turno"
         message={
           cancelModal.booking
-            ? `¿Estás seguro de que quieres cancelar la cita de ${
+            ? `¿Estás seguro de que quieres cancelar el turno de ${
                 cancelModal.booking.name || "el cliente"
               } para el ${formatDate(
                 cancelModal.booking.date
               )} a las ${formatTime(cancelModal.booking.time)}?`
-            : "¿Estás seguro de que quieres cancelar esta cita?"
+            : "¿Estás seguro de que quieres cancelar este turno?"
         }
         confirmText="Sí, Cancelar"
         cancelText="No, Mantener"

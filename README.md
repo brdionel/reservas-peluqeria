@@ -18,7 +18,7 @@ Peluqueria/
 - **Prisma ORM** con PostgreSQL
 - **JWT** para autenticación
 - **Google Calendar API** para sincronización
-- **Railway** para deploy
+- **Render** para deploy
 
 ### Frontend
 - **React 18** con TypeScript
@@ -31,7 +31,7 @@ Peluqueria/
 
 - Node.js 18+ 
 - npm o yarn
-- Cuenta en Railway (para backend)
+- Cuenta en Render (para backend)
 - Cuenta en Netlify (para frontend)
 - Base de datos PostgreSQL
 
@@ -85,11 +85,11 @@ VITE_GOOGLE_CLIENT_ID=tu-google-client-id
 
 ## 🚀 Deploy
 
-### Backend en Railway
+### Backend en Render
 
-1. Conectar repositorio a Railway
-2. Configurar variables de entorno en Railway
-3. Railway detectará automáticamente el `package.json` y hará deploy
+1. Conectar repositorio a Render
+2. Configurar variables de entorno en Render
+3. Render detectará automáticamente el `package.json` y hará deploy
 
 ### Frontend en Netlify
 
@@ -101,7 +101,7 @@ VITE_GOOGLE_CLIENT_ID=tu-google-client-id
 
 ## 📊 Base de Datos
 
-El proyecto usa PostgreSQL con Prisma ORM. Las migraciones se ejecutan automáticamente en Railway.
+El proyecto usa PostgreSQL con Prisma ORM. Las migraciones se ejecutan automáticamente en Render.
 
 ### Comandos útiles de Prisma:
 

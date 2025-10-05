@@ -2,6 +2,7 @@ import express from 'express';
 import { z } from 'zod';
 import { prisma } from '../server.js';
 import { validateRequest } from '../middleware/validation.js';
+import { validatePhoneFormat } from '../utils/phoneValidation.js';
 // No necesitamos importar rate limiting específico aquí, el smartLimiter global se encarga
 
 const router = express.Router();
@@ -9,14 +10,29 @@ const router = express.Router();
 // Esquemas de validación
 const createClientSchema = z.object({
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
-  phone: z.string().min(8, 'El teléfono debe tener al menos 8 caracteres'),
+  phone: z.string().min(10, 'El teléfono debe tener al menos 10 caracteres'),
   isRegular: z.boolean().optional().default(false)
+}).refine((data) => {
+  const phoneValidation = validatePhoneFormat(data.phone);
+  return phoneValidation.isValid;
+}, {
+  message: "Formato de teléfono argentino inválido",
+  path: ["phone"]
 });
 
 const updateClientSchema = z.object({
   name: z.string().min(2).optional(),
-  phone: z.string().min(8).optional(),
+  phone: z.string().min(10).optional(),
   isRegular: z.boolean().optional()
+}).refine((data) => {
+  if (data.phone) {
+    const phoneValidation = validatePhoneFormat(data.phone);
+    return phoneValidation.isValid;
+  }
+  return true;
+}, {
+  message: "Formato de teléfono argentino inválido",
+  path: ["phone"]
 });
 
 // GET /api/clients - Obtener todos los clientes

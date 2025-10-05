@@ -5,6 +5,8 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  VITE_API_URL = "https://reservas-peluqeria.onrender.com"
+  VITE_GOOGLE_CLIENT_ID = "tu-google-client-id"
 
 [[redirects]]
   from = "/*"

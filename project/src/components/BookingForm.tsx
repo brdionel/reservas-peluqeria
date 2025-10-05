@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { User, Phone, Calendar, Clock, Check } from "lucide-react";
 import { BookingData } from "../types/booking";
 import { useBookingData } from "../hooks/useBookingData";
+import { validateArgentinaPhone } from "../utils/phoneValidation";
 
 interface BookingFormProps {
   selectedDate: Date;
@@ -32,20 +33,21 @@ export const BookingForm: React.FC<BookingFormProps> = ({
       newErrors.name = "El nombre es requerido";
     }
 
-    // Validar código de área (2-4 dígitos sin 0)
-    const areaCodeRegex = /^[1-9]\d{1,3}$/;
+    // Validar teléfono usando las reglas argentinas
     if (!formData.areaCode.trim()) {
       newErrors.areaCode = "El código de área es requerido";
-    } else if (!areaCodeRegex.test(formData.areaCode)) {
-      newErrors.areaCode = "Ingresa un código de área válido (ej: 11, 236)";
-    }
-
-    // Validar número (6-8 dígitos sin 15)
-    const phoneNumberRegex = /^[2-9]\d{5,7}$/;
-    if (!formData.phoneNumber.trim()) {
+    } else if (!formData.phoneNumber.trim()) {
       newErrors.phoneNumber = "El número es requerido";
-    } else if (!phoneNumberRegex.test(formData.phoneNumber)) {
-      newErrors.phoneNumber = "Ingresa un número válido (ej: 12345678)";
+    } else {
+      const phoneValidation = validateArgentinaPhone(formData.areaCode, formData.phoneNumber);
+      if (!phoneValidation.isValid) {
+        // Asignar el error al campo correspondiente
+        if (phoneValidation.error?.includes('Código de área')) {
+          newErrors.areaCode = phoneValidation.error;
+        } else {
+          newErrors.phoneNumber = phoneValidation.error || "Número de teléfono inválido";
+        }
+      }
     }
 
     // Validar que la fecha esté dentro del rango permitido
@@ -76,12 +78,18 @@ export const BookingForm: React.FC<BookingFormProps> = ({
     // Simular loading
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // Formatear el teléfono completo para la base de datos
-    const fullPhone = `+54 9 ${formData.areaCode} ${formData.phoneNumber}`;
+    // Validar y normalizar el teléfono argentino
+    const phoneValidation = validateArgentinaPhone(formData.areaCode, formData.phoneNumber);
+    
+    if (!phoneValidation.isValid) {
+      setErrors({ phone: phoneValidation.error || 'Teléfono inválido' });
+      setIsSubmitting(false);
+      return;
+    }
     
     const bookingData: BookingData = {
       name: formData.name,
-      phone: fullPhone,
+      phone: phoneValidation.normalized,
       date: (() => {
         const pad = (n: number) => n.toString().padStart(2, "0");
         return `${selectedDate.getFullYear()}-${pad(
@@ -154,13 +162,15 @@ export const BookingForm: React.FC<BookingFormProps> = ({
             <Phone className="w-4 h-4 inline mr-2" />
             Teléfono
           </label>
-          <div className="flex gap-2">
-            <div className="w-24">
+          {/* Diseño responsive: horizontal en pantallas grandes, vertical en móviles */}
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-2">
+            {/* Código de Área */}
+            <div className="w-full sm:w-24 flex-shrink-0">
               <label className="block text-xs text-gray-500 mb-1">
                 Código de Área
               </label>
               <div className="flex items-center">
-                <div className="bg-gray-100 text-gray-600 font-medium px-2 py-3 border border-r-0 rounded-l-lg border-gray-300 text-sm">
+                <div className="bg-gray-100 text-gray-600 font-medium px-2 py-3 border border-r-0 rounded-l-lg border-gray-300 text-sm flex-shrink-0">
                   0
                 </div>
                 <input
@@ -170,7 +180,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
                     const value = e.target.value.replace(/\D/g, '').slice(0, 4);
                     setFormData({ ...formData, areaCode: value });
                   }}
-                  className={`w-full px-2 py-3 border rounded-r-lg focus:ring-2 focus:ring-black-500 focus:border-black-500 transition-colors text-sm ${
+                  className={`w-full px-1.5 py-3 border rounded-r-lg focus:ring-2 focus:ring-black-500 focus:border-black-500 transition-colors text-sm ${
                     errors.areaCode ? "border-red-300 bg-red-50" : "border-gray-300"
                   }`}
                   placeholder="11"
@@ -181,12 +191,14 @@ export const BookingForm: React.FC<BookingFormProps> = ({
                 <p className="text-red-500 text-xs mt-1">{errors.areaCode}</p>
               )}
             </div>
-            <div className="flex-1">
+            
+            {/* Número de Teléfono */}
+            <div className="flex-1 min-w-0">
               <label className="block text-xs text-gray-500 mb-1">
                 Número
               </label>
               <div className="flex items-center">
-                <div className="bg-gray-100 text-gray-600 font-medium px-2 py-3 border border-r-0 rounded-l-lg border-gray-300 text-sm">
+                <div className="bg-gray-100 text-gray-600 font-medium px-2 py-3 border border-r-0 rounded-l-lg border-gray-300 text-sm flex-shrink-0">
                   15
                 </div>
                 <input
@@ -196,7 +208,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
                     const value = e.target.value.replace(/\D/g, '').slice(0, 8);
                     setFormData({ ...formData, phoneNumber: value });
                   }}
-                  className={`flex-1 px-3 py-3 border rounded-r-lg focus:ring-2 focus:ring-black-500 focus:border-black-500 transition-colors text-sm ${
+                  className={`w-full px-3 py-3 border rounded-r-lg focus:ring-2 focus:ring-black-500 focus:border-black-500 transition-colors text-sm ${
                     errors.phoneNumber ? "border-red-300 bg-red-50" : "border-gray-300"
                   }`}
                   placeholder="12345678"
@@ -217,9 +229,9 @@ export const BookingForm: React.FC<BookingFormProps> = ({
           <p className="text-yellow-800 text-sm">
             <strong>📌 Política de reservas: </strong>
             Al reservar en <strong>Invictus</strong>, podrás cancelar o
-            reprogramar hasta 2 horas antes de la cita enviando un mensaje a
+            reprogramar hasta 2 horas antes del turno enviando un mensaje a
             nuestro número. Tus datos
-            serán utilizados únicamente para gestionar tu cita.
+            serán utilizados únicamente para gestionar tu turno.
           </p>
         </div>
 

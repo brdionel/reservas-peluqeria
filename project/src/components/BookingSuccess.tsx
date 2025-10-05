@@ -1,6 +1,7 @@
 import React from 'react';
 import { CheckCircle, Calendar, Clock, User, Phone } from 'lucide-react';
 import { BookingData } from '../types/booking';
+import { formatPhoneForDisplay } from '../utils/phoneValidation';
 
 interface BookingSuccessProps {
   booking: BookingData;
@@ -41,11 +42,11 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
       </h2>
       
       <p className="text-gray-600 mb-8">
-        Tu cita ha sido agendada exitosamente. Te esperamos!
+        Tu turno ha sido agendado. Te esperamos!
       </p>
 
       <div className="bg-gray-50 rounded-lg p-6 mb-8 text-left">
-        <h3 className="font-semibold text-gray-800 mb-4">Detalles de tu cita:</h3>
+        <h3 className="font-semibold text-gray-800 mb-4">Detalles de tu turno:</h3>
         
         <div className="space-y-3">
           <div className="flex items-center gap-3">
@@ -55,7 +56,9 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
           
           <div className="flex items-center gap-3">
             <Phone className="w-5 h-5 text-gray-500" />
-            <span className="text-gray-700">{booking.client?.phone || booking.phone}</span>
+            <span className="text-gray-700">
+              {formatPhoneForDisplay(booking.client?.phone || booking.phone)}
+            </span>
           </div>
           
           <div className="flex items-center gap-3">
@@ -73,7 +76,7 @@ export const BookingSuccess: React.FC<BookingSuccessProps> = ({
 
       <div className="bg-black-50 rounded-lg p-4 mb-6">
         <p className="text-black text-sm">
-          <strong>Recordatorio:</strong> Por favor llega 5 minutos antes de tu cita. 
+          <strong>Recordatorio:</strong> Por favor llega 5 minutos antes de tu turno. 
           Si necesitas cancelar o reprogramar, contáctanos con al menos 2 horas de anticipación.
         </p>
       </div>

@@ -4,17 +4,24 @@ import { prisma } from '../server.js';
 import { validateRequest } from '../middleware/validation.js';
 import { createCalendarEvent, deleteCalendarEvent, updateCalendarEvent } from '../services/googleCalendar.js';
 import { bookingLimiter } from '../middleware/rateLimit.js';
+import { validatePhoneFormat } from '../utils/phoneValidation.js';
 
 const router = express.Router();
 
 // Esquemas de validación
 const createBookingSchema = z.object({
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
-  phone: z.string().min(8, 'El teléfono debe tener al menos 8 caracteres'),
+  phone: z.string().min(10, 'El teléfono debe tener al menos 10 caracteres'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido (YYYY-MM-DD)'),
   time: z.string().regex(/^\d{2}:\d{2}$/, 'Formato de hora inválido (HH:MM)'),
   service: z.string().optional(),
   notes: z.string().optional()
+}).refine((data) => {
+  const phoneValidation = validatePhoneFormat(data.phone);
+  return phoneValidation.isValid;
+}, {
+  message: "Formato de teléfono argentino inválido",
+  path: ["phone"]
 });
 
 const updateBookingSchema = z.object({

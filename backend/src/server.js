@@ -35,8 +35,11 @@ app.use(smartLimiter);
 // CORS
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://unique-lolly-3c4f22.netlify.app',
-  'https://*.netlify.app'
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+  'https://peluqueriainvictus.netlify.app',
+  'https://unique-lolly-3c4f22.netlify.app'
 ];
 
 app.use(cors({
@@ -45,20 +48,19 @@ app.use(cors({
     if (!origin) return callback(null, true);
     
     // Verificar si el origin está en la lista de permitidos
-    const isAllowed = allowedOrigins.some(allowedOrigin => {
-      if (allowedOrigin.includes('*')) {
-        return origin.includes(allowedOrigin.replace('*', ''));
-      }
-      return origin === allowedOrigin;
-    });
+    const isAllowed = allowedOrigins.includes(origin);
     
     if (isAllowed) {
       callback(null, true);
     } else {
+      console.log('CORS Error - Origin no permitido:', origin);
+      console.log('Orígenes permitidos:', allowedOrigins);
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Middleware para parsing

@@ -38,32 +38,23 @@ export const TimeSlots: React.FC<TimeSlotsProps> = ({
       </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        {slots.map((slot) => (
-          <button
-            key={slot.time}
-            onClick={() => slot.available && onTimeSelect(slot.time)}
-            disabled={!slot.available}
-            className={`
-              p-3 rounded-lg border-2 transition-all duration-200 text-sm font-medium
-              ${selectedTime === slot.time
-                ? 'border-blue-500 bg-blue-50 text-blue-600'
-                : slot.available
-                ? 'border-gray-200 hover:border-blue-300 hover:bg-blue-50 text-gray-700'
-                : 'border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed'
-              }
-            `}
-          >
-            <div className="flex items-center justify-center gap-1">
-              {!slot.available && <User className="w-3 h-3" />}
+        {slots
+          .filter(slot => slot.available) // Solo mostrar horarios disponibles
+          .map((slot) => (
+            <button
+              key={slot.time}
+              onClick={() => onTimeSelect(slot.time)}
+              className={`
+                p-3 rounded-lg border-2 transition-all duration-200 text-sm font-medium
+                ${selectedTime === slot.time
+                  ? 'border-blue-500 bg-blue-50 text-blue-600'
+                  : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50 text-gray-700'
+                }
+              `}
+            >
               <span>{slot.time}</span>
-            </div>
-            {!slot.available && (
-              <div className="text-xs text-gray-400 mt-1">
-                Ocupado
-              </div>
-            )}
-          </button>
-        ))}
+            </button>
+          ))}
       </div>
 
       {slots.filter(slot => slot.available).length === 0 && (
