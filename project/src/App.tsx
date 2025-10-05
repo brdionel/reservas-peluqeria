@@ -105,17 +105,6 @@ function ReservaView() {
                 </h3>
                 <div className="space-y-4 text-gray-600">
                   <div>
-                    <h4 className="font-medium text-gray-800 mb-2">Servicios Disponibles:</h4>
-                    <ul className="space-y-1 text-sm">
-                      <li>• Corte de Cabello</li>
-                      <li>• Lavado y Peinado</li>
-                      <li>• Corte + Lavado</li>
-                      <li>• Barba</li>
-                      <li>• Corte + Barba</li>
-                      <li>• Tratamiento Capilar</li>
-                    </ul>
-                  </div>
-                  <div>
                     <h4 className="font-medium text-gray-800 mb-2">Horarios de Atención:</h4>
                     <p className="text-sm">Martes a Viernes: 9:30 AM - 8:00 PM</p>
                     <p className="text-sm">Sábados: 10:00 AM - 7:00 PM</p>
