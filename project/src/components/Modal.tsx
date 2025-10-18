@@ -88,6 +88,7 @@ interface ConfirmModalProps {
   confirmText?: string;
   cancelText?: string;
   type?: 'warning' | 'error';
+  isLoading?: boolean;
 }
 
 export const ConfirmModal: React.FC<ConfirmModalProps> = ({
@@ -99,10 +100,12 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   confirmText = 'Confirmar',
   cancelText = 'Cancelar',
   type = 'warning',
+  isLoading = false,
 }) => {
   const handleConfirm = () => {
-    onConfirm();
-    onClose();
+    if (!isLoading) {
+      onConfirm();
+    }
   };
 
   return (
@@ -119,19 +122,34 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
         <div className="flex gap-3 pt-4">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+            disabled={isLoading}
+            className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+              isLoading
+                ? "text-gray-400 bg-gray-100 cursor-not-allowed"
+                : "text-gray-700 bg-gray-100 hover:bg-gray-200"
+            }`}
           >
             {cancelText}
           </button>
           <button
             onClick={handleConfirm}
-            className={`flex-1 px-4 py-2 text-white font-medium rounded-lg transition-colors ${
-              type === 'error' 
-                ? 'bg-red-500 hover:bg-red-600' 
-                : 'bg-orange-500 hover:bg-orange-600'
+            disabled={isLoading}
+            className={`flex-1 px-4 py-2 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 ${
+              isLoading
+                ? "bg-gray-400 cursor-not-allowed"
+                : type === 'error' 
+                  ? 'bg-red-500 hover:bg-red-600' 
+                  : 'bg-orange-500 hover:bg-orange-600'
             }`}
           >
-            {confirmText}
+            {isLoading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Procesando...
+              </>
+            ) : (
+              confirmText
+            )}
           </button>
         </div>
       </div>

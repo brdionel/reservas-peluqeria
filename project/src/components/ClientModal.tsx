@@ -16,6 +16,7 @@ interface ClientModalProps {
   onSubmit: (clientData: { name: string; areaCode: string; phoneNumber: string }) => void;
   client?: Client | null;
   mode: "add" | "edit";
+  isLoading?: boolean;
 }
 
 export const ClientModal: React.FC<ClientModalProps> = ({
@@ -24,6 +25,7 @@ export const ClientModal: React.FC<ClientModalProps> = ({
   onSubmit,
   client,
   mode,
+  isLoading = false,
 }) => {
   const [formData, setFormData] = useState({
     name: "",
@@ -117,7 +119,12 @@ export const ClientModal: React.FC<ClientModalProps> = ({
               placeholder="Ingresa el nombre completo"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              disabled={isLoading}
+              className={`w-full px-4 py-3 border rounded-lg transition-colors ${
+                isLoading
+                  ? "border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
+                  : "border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              }`}
               required
             />
           </div>
@@ -137,7 +144,12 @@ export const ClientModal: React.FC<ClientModalProps> = ({
                   placeholder="11"
                   value={formData.areaCode}
                   onChange={(e) => setFormData({ ...formData, areaCode: e.target.value })}
-                  className="w-24 px-3 py-3 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  disabled={isLoading}
+                  className={`w-24 px-3 py-3 border rounded-r-lg transition-colors ${
+                    isLoading
+                      ? "border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
+                      : "border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  }`}
                   required
                 />
               </div>
@@ -150,7 +162,12 @@ export const ClientModal: React.FC<ClientModalProps> = ({
                   placeholder="1234-5678"
                   value={formData.phoneNumber}
                   onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-                  className="flex-1 px-3 py-3 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  disabled={isLoading}
+                  className={`flex-1 px-3 py-3 border rounded-r-lg transition-colors ${
+                    isLoading
+                      ? "border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
+                      : "border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  }`}
                   required
                 />
               </div>
@@ -183,15 +200,32 @@ export const ClientModal: React.FC<ClientModalProps> = ({
             <button
               type="button"
               onClick={handleClose}
-              className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              disabled={isLoading}
+              className={`flex-1 px-4 py-3 border rounded-lg transition-colors ${
+                isLoading
+                  ? "border-gray-200 text-gray-400 cursor-not-allowed"
+                  : "border-gray-300 text-gray-700 hover:bg-gray-50"
+              }`}
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              disabled={isLoading}
+              className={`flex-1 px-4 py-3 rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                isLoading
+                  ? "bg-gray-400 text-gray-200 cursor-not-allowed"
+                  : "bg-blue-600 text-white hover:bg-blue-700"
+              }`}
             >
-              {mode === "add" ? "Agregar Cliente" : "Guardar Cambios"}
+              {isLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  {mode === "add" ? "Agregando..." : "Guardando..."}
+                </>
+              ) : (
+                mode === "add" ? "Agregar Cliente" : "Guardar Cambios"
+              )}
             </button>
           </div>
         </form>

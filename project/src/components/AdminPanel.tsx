@@ -63,6 +63,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
     getAvailableSlots,
     salonConfig,
     updateSalonConfig,
+    setBookings,
   } = useBookingData();
   const { admin, logout } = useAuth();
   const navigate = useNavigate();
@@ -87,6 +88,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
       time: "",
     }
   );
+  const [isCreatingBooking, setIsCreatingBooking] = useState(false);
+  const [isCreatingClient, setIsCreatingClient] = useState(false);
+  const [isDeletingClient, setIsDeletingClient] = useState(false);
+  const [isCancelingBooking, setIsCancelingBooking] = useState(false);
   const [notification, setNotification] = useState<{
     type: "success" | "error";
     message: string;
@@ -189,6 +194,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
   const confirmCancelBooking = async () => {
     if (!cancelModal.booking) return;
 
+    // Evitar múltiples envíos
+    if (isCancelingBooking) {
+      return;
+    }
+
+    setIsCancelingBooking(true);
+
     const { date, time, name } = cancelModal.booking;
     const clientName = name || "el cliente";
 
@@ -208,10 +220,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
           // Actualizar estado local
           const success = cancelBooking(date, time);
           if (success) {
+            // Recargar clientes para actualizar estadísticas
+            await loadClients();
+            
             showNotification(
               "success",
               `Turno de ${clientName} cancelado exitosamente`
             );
+            setCancelModal({ isOpen: false, booking: null });
           }
         } else {
           showNotification(
@@ -225,6 +241,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
     } catch (error) {
       console.error("Error canceling booking:", error);
       showNotification("error", "Error al cancelar la reserva");
+    } finally {
+      setIsCancelingBooking(false);
     }
   };
 
@@ -241,12 +259,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
       return;
     }
 
-    // Formatear el teléfono completo
+    // Evitar múltiples envíos
+    if (isCreatingBooking) {
+      return;
+    }
+
+    setIsCreatingBooking(true);
+
+    // Formatear el teléfono completo y normalizarlo
     const fullPhone = `+54 9 ${manualBookingForm.areaCode} ${manualBookingForm.phoneNumber}`;
+    const normalizedPhone = fullPhone.replace(/\D/g, ''); // Remover todos los caracteres no numéricos
+    const finalPhone = `+${normalizedPhone}`;
 
     const bookingData: BookingData = {
       name: manualBookingForm.name,
-      phone: fullPhone,
+      phone: finalPhone,
       date: currentView === "today" ? todayString : selectedDateString,
       time: manualBookingForm.time,
     };
@@ -256,12 +283,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
       const response = await bookingService.createBooking(bookingData);
 
       if (response.success) {
-        // Recargar todas las reservas para mantener sincronización
-        getAllBookings();
+        // Actualizar el estado local con la nueva reserva
+        if (response.data) {
+          setBookings((prev) => [...prev, response.data as BookingData]);
+        }
+
+        // Recargar clientes para actualizar estadísticas
+        await loadClients();
+        
+        // Si estamos en la vista de clientes, forzar re-render
+        if (currentView === "clients") {
+          // Pequeño delay para asegurar que el backend haya procesado todo
+          setTimeout(() => {
+            loadClients();
+          }, 500);
+        } else {
+          // Si no estamos en la vista de clientes, cambiar a ella para mostrar el nuevo cliente
+          updateCurrentView("clients");
+        }
 
         showNotification(
           "success",
-          `Turno agendado para ${manualBookingForm.name} a las ${manualBookingForm.time}`
+          `Turno agendado para ${manualBookingForm.name} a las ${manualBookingForm.time}. Cliente agregado automáticamente.`
         );
         setManualBookingForm({ name: "", areaCode: "", phoneNumber: "", time: "" });
         setShowManualBooking(false);
@@ -274,6 +317,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
     } catch (error) {
       console.error("Error creating booking:", error);
       showNotification("error", "Error al crear la reserva");
+    } finally {
+      setIsCreatingBooking(false);
     }
   };
 
@@ -285,15 +330,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
   // Cargar clientes del backend
   const loadClients = async () => {
     try {
+      console.log("🔄 Cargando clientes del backend...");
       const response = await clientService.getClients();
       if (response.success && response.data) {
-        setClients(Array.isArray(response.data) ? response.data : []);
+        const clientsData = Array.isArray(response.data) ? response.data : [];
+        console.log("✅ Clientes cargados:", clientsData.length, "clientes");
+        setClients(clientsData);
       } else {
-        console.error("Error cargando clientes:", response.error);
+        console.error("❌ Error cargando clientes:", response.error);
         showNotification("error", "Error al cargar los clientes");
       }
     } catch (error) {
-      console.error("Error cargando clientes:", error);
+      console.error("❌ Error cargando clientes:", error);
       showNotification("error", "Error al cargar los clientes");
     }
   };
@@ -835,16 +883,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
   };
 
   const handleClientSubmit = async (clientData: { name: string; areaCode: string; phoneNumber: string }) => {
+    // Evitar múltiples envíos
+    if (isCreatingClient) {
+      return;
+    }
+
+    setIsCreatingClient(true);
+
     const fullPhone = `+54 9 ${clientData.areaCode} ${clientData.phoneNumber}`;
+    const normalizedPhone = fullPhone.replace(/\D/g, ''); // Remover todos los caracteres no numéricos
+    const finalPhone = `+${normalizedPhone}`;
     
-    console.log("🔍 handleClientSubmit llamado con:", { clientData, fullPhone, mode: clientModalMode });
+    console.log("🔍 handleClientSubmit llamado con:", { clientData, fullPhone, finalPhone, mode: clientModalMode });
     
     try {
       if (clientModalMode === "add") {
         console.log("📤 Enviando request para crear cliente...");
         const response = await clientService.createClient({
           name: clientData.name,
-          phone: fullPhone,
+          phone: finalPhone,
         });
 
         console.log("📥 Respuesta del servidor:", response);
@@ -865,7 +922,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
           console.log("📤 Enviando request para actualizar cliente...");
           const response = await clientService.updateClient(client.id, {
             name: clientData.name,
-            phone: fullPhone,
+            phone: finalPhone,
           });
 
           console.log("📥 Respuesta del servidor:", response);
@@ -885,6 +942,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
     } catch (error) {
       console.error("💥 Error en operación de cliente:", error);
       showNotification("error", "Error al procesar la solicitud");
+    } finally {
+      setIsCreatingClient(false);
     }
   };
 
@@ -898,6 +957,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
 
   const confirmDeleteClient = async () => {
     if (!deleteClientModal.client || deleteClientModal.clientIndex === null) return;
+
+    // Evitar múltiples envíos
+    if (isDeletingClient) {
+      return;
+    }
+
+    setIsDeletingClient(true);
 
     try {
       const response = await clientService.deleteClient(deleteClientModal.client.id);
@@ -913,6 +979,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
       console.error("Error eliminando cliente:", error);
       showNotification("error", "Error al eliminar el cliente");
     } finally {
+      setIsDeletingClient(false);
       setDeleteClientModal({
         isOpen: false,
         client: null,
@@ -2081,7 +2148,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                       name: e.target.value,
                     })
                   }
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  disabled={isCreatingBooking}
+                  className={`w-full px-4 py-3 border rounded-lg transition-colors ${
+                    isCreatingBooking
+                      ? "border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
+                      : "border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  }`}
                   required
                 />
               </div>
@@ -2105,7 +2177,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                           areaCode: e.target.value,
                     })
                   }
-                      className="w-24 px-3 py-3 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  disabled={isCreatingBooking}
+                      className={`w-24 px-3 py-3 border rounded-r-lg transition-colors ${
+                        isCreatingBooking
+                          ? "border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
+                          : "border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      }`}
                   required
                 />
                   </div>
@@ -2123,7 +2200,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                           phoneNumber: e.target.value,
                         })
                       }
-                      className="flex-1 px-3 py-3 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      disabled={isCreatingBooking}
+                      className={`flex-1 px-3 py-3 border rounded-r-lg transition-colors ${
+                        isCreatingBooking
+                          ? "border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
+                          : "border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      }`}
                       required
                     />
                   </div>
@@ -2142,7 +2224,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                       time: e.target.value,
                     })
                   }
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  disabled={isCreatingBooking}
+                  className={`w-full px-4 py-3 border rounded-lg transition-colors ${
+                    isCreatingBooking
+                      ? "border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
+                      : "border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  }`}
                   required
                 >
                   <option value="">Seleccionar horario</option>
@@ -2170,15 +2257,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                 <button
                   type="button"
                   onClick={() => setShowManualBooking(false)}
-                  className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                  disabled={isCreatingBooking}
+                  className={`flex-1 py-3 px-4 rounded-lg transition-colors font-medium ${
+                    isCreatingBooking
+                      ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  disabled={isCreatingBooking}
+                  className={`flex-1 py-3 px-4 rounded-lg transition-colors font-medium flex items-center justify-center gap-2 ${
+                    isCreatingBooking
+                      ? "bg-gray-400 text-gray-200 cursor-not-allowed"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}
                 >
-                  Confirmar Turno
+                  {isCreatingBooking ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Creando...
+                    </>
+                  ) : (
+                    "Confirmar Turno"
+                  )}
                 </button>
               </div>
             </form>
@@ -2204,6 +2308,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
         confirmText="Sí, Cancelar"
         cancelText="No, Mantener"
         type="warning"
+        isLoading={isCancelingBooking}
       />
 
       {/* Modal de confirmación para eliminar clientes */}
@@ -2220,6 +2325,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
         confirmText="Sí, Eliminar"
         cancelText="Cancelar"
         type="error"
+        isLoading={isDeletingClient}
       />
 
       {/* Client Modal */}
@@ -2229,6 +2335,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
         onSubmit={handleClientSubmit}
         client={editingClientIndex !== null ? getFilteredClients()[editingClientIndex] : null}
         mode={clientModalMode}
+        isLoading={isCreatingClient}
       />
     </div>
   );
