@@ -8,7 +8,8 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "serve": "node src/server.js",
-    "build": "npm run db:generate && npm run db:migrate:deploy",
+    "build": "npm run db:generate && npm run db:resolve-failed && npm run db:migrate:deploy",
+    "db:resolve-failed": "node scripts/resolve-failed-migration.js",
     "postinstall": "npm run db:generate",
     "railway-start": "node src/server.js",
     "db:generate": "prisma generate",
@@ -39,6 +40,7 @@
     "bcrypt": "^6.0.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
+    "csv-parser": "^3.2.0",
     "date-fns": "^3.0.6",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
@@ -46,10 +48,13 @@
     "googleapis": "^156.0.0",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
+    "xlsx": "^0.18.5",
     "zod": "^3.22.4"
   },
   "devDependencies": {
     "nodemon": "^3.0.2",
+    "picomatch": "^2.3.1",
     "prisma": "^5.22.0"
   }
 }
