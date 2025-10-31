@@ -17,7 +17,8 @@ yarn-error.log*
 dev.db*
 
 # Prisma
-prisma/migrations/
+# Las migraciones deben estar en el repositorio para producción
+# prisma/migrations/
 
 # Logs
 logs
