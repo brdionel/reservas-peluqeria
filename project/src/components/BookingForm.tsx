@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { User, Phone, Calendar, Clock, Check } from "lucide-react";
-import { BookingData } from "../types/booking";
+import { BookingData, BookingStatus } from "../types/booking";
 import { useBookingData } from "../hooks/useBookingData";
 import { validateArgentinaPhone } from "../utils/phoneValidation";
 
@@ -97,6 +97,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
         )}-${pad(selectedDate.getDate())}`;
       })(),
       time: selectedTime,
+      status: 'confirmed' as BookingStatus,
     };
 
     onBookingSubmit(bookingData);

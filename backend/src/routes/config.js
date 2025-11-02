@@ -298,4 +298,45 @@ router.post('/reset', authenticateToken, async (req, res) => {
   }
 });
 
+// Endpoint para verificar el estado de WhatsApp
+router.get('/whatsapp-status', authenticateToken, async (req, res) => {
+  try {
+    const { whatsappService } = await import('../services/whatsappService.js');
+    
+    // Verificar si está configurado
+    const isConfigured = whatsappService.isConfigured();
+    
+    let status = 'not_configured';
+    let message = 'WhatsApp no está configurado';
+    
+    if (isConfigured) {
+      // Intentar hacer una verificación básica del token
+      try {
+        // Aquí podrías hacer una llamada a la API de WhatsApp para verificar el token
+        // Por ahora, asumimos que si está configurado, está funcionando
+        status = 'configured';
+        message = 'WhatsApp está configurado y disponible';
+      } catch (error) {
+        status = 'error';
+        message = 'Error en la configuración de WhatsApp';
+      }
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        status,
+        message,
+        configured: isConfigured
+      }
+    });
+  } catch (error) {
+    console.error('Error verificando estado de WhatsApp:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error al verificar el estado de WhatsApp'
+    });
+  }
+});
+
 export default router;

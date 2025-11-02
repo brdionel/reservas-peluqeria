@@ -452,30 +452,36 @@ export async function verifyBookingsInCalendar(prisma, startDate, endDate) {
 
     // Verificar cada reserva
     for (const booking of dbBookings) {
-      if (booking.googleEventId) {
+      if (booking.googleEventIds) {
         // Buscar el evento en Google Calendar por ID (solo en eventos relevantes)
-        const hasCalendarEvent = relevantEvents.some(event => 
-          event.id === booking.googleEventId
-        );
+        try {
+          const eventIds = JSON.parse(booking.googleEventIds);
+          const hasCalendarEvent = relevantEvents.some(event => 
+            eventIds.includes(event.id)
+          );
 
-        if (hasCalendarEvent) {
-          verificationResults.inCalendar++;
-        } else {
-          verificationResults.missingInCalendar++;
-          verificationResults.details.push({
-            type: 'missing_in_calendar',
-            bookingId: booking.id,
-            clientName: booking.client.name,
-            clientPhone: booking.client.phone,
-            date: booking.date,
-            time: booking.time,
-            service: booking.service,
-            notes: booking.notes,
-            googleEventId: booking.googleEventId,
-            action: 'recreate_event'
-          });
-          console.log(`⚠️ Reserva sin evento en Google Calendar: ${booking.client.name} - ${booking.date} ${booking.time}`);
-        }
+          if (hasCalendarEvent) {
+            verificationResults.inCalendar++;
+          } else {
+            verificationResults.missingInCalendar++;
+            verificationResults.details.push({
+              type: 'missing_in_calendar',
+              bookingId: booking.id,
+              clientName: booking.client.name,
+              clientPhone: booking.client.phone,
+              date: booking.date,
+              time: booking.time,
+              service: booking.service,
+              notes: booking.notes,
+              googleEventIds: booking.googleEventIds,
+              action: 'recreate_event'
+            });
+            console.log(`⚠️ Reserva sin evento en Google Calendar: ${booking.client.name} - ${booking.date} ${booking.time}`);
+          }
+        } catch (error) {
+            console.error(`Error parsing googleEventIds for booking ${booking.id}:`, error);
+            verificationResults.missingEventIds++;
+          }
       } else {
         verificationResults.missingEventIds++;
         verificationResults.details.push({
@@ -496,8 +502,15 @@ export async function verifyBookingsInCalendar(prisma, startDate, endDate) {
     // Detectar eventos de turnos en Google Calendar que no están en la base de datos
     const calendarEventIds = relevantEvents.map(event => event.id);
     const dbEventIds = dbBookings
-      .filter(booking => booking.googleEventId)
-      .map(booking => booking.googleEventId);
+      .filter(booking => booking.googleEventIds)
+      .flatMap(booking => {
+        try {
+          return JSON.parse(booking.googleEventIds);
+        } catch (error) {
+          console.error(`Error parsing googleEventIds for booking ${booking.id}:`, error);
+          return [];
+        }
+      });
 
     const orphanedEvents = relevantEvents.filter(event => 
       !dbEventIds.includes(event.id)
@@ -575,7 +588,7 @@ export async function repairMissingCalendarEvents(prisma, missingBookings) {
           // Actualizar la reserva con el nuevo ID del evento
           await prisma.booking.update({
             where: { id: booking.bookingId },
-            data: { googleEventId: calendarResult.eventId }
+            data: { googleEventIds: JSON.stringify([calendarResult.eventId]) }
           });
           
           repairResults.created++;

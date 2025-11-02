@@ -7,6 +7,7 @@ interface ApiResponse<T> {
   data?: T;
   error?: string;
   message?: string;
+  preview?: any; // Para respuestas de carga masiva
 }
 
 // Cliente HTTP personalizado
@@ -124,6 +125,11 @@ class ApiClient {
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, { method: 'DELETE' });
   }
+
+  // Método público para requests personalizados
+  async customRequest<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, options);
+  }
 }
 
 // Instancia del cliente API
@@ -171,6 +177,11 @@ export const configService = {
   // Resetear configuración
   async resetConfig() {
     return apiClient.post('/api/config/reset');
+  },
+
+  // Verificar estado de WhatsApp
+  async getWhatsAppStatus() {
+    return apiClient.get('/api/config/whatsapp-status');
   },
 };
 
@@ -225,6 +236,20 @@ export const clientService = {
   // Obtener clientes eliminados
   async getDeletedClients() {
     return apiClient.get('/api/clients/deleted');
+  },
+
+  // Carga masiva de clientes
+  async bulkImportClients(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    return apiClient.customRequest('/api/clients/bulk-import', {
+      method: 'POST',
+      body: formData,
+      headers: {
+        // No establecer Content-Type para FormData, el navegador lo hace automáticamente
+      },
+    });
   },
 };
 

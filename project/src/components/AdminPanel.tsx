@@ -25,6 +25,9 @@ import {
   LogOut,
   UserPlus,
   Edit,
+  Check,
+  X as XIcon,
+  ChevronDown,
 } from "lucide-react";
 import { useBookingData } from "../hooks/useBookingData";
 import { useAuth } from "../hooks/useAuth";
@@ -35,7 +38,63 @@ import {
   BookingData,
   WorkingHours,
   SalonConfig,
+  BookingStatus,
 } from "../types/booking";
+
+// Componente para el logo de Google Calendar
+const GoogleCalendarIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    {/* Estructura del calendario */}
+    <rect
+      x="4"
+      y="5"
+      width="16"
+      height="14"
+      rx="2"
+      fill="#ffffff"
+      stroke="#dadce0"
+      strokeWidth="1"
+    />
+    {/* Espiral superior */}
+    <path
+      d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
+      fill="#4285F4"
+    />
+    {/* Líneas de la cuadrícula */}
+    <line x1="8" y1="9" x2="8" y2="19" stroke="#dadce0" strokeWidth="0.5" />
+    <line x1="12" y1="9" x2="12" y2="19" stroke="#dadce0" strokeWidth="0.5" />
+    <line x1="16" y1="9" x2="16" y2="19" stroke="#dadce0" strokeWidth="0.5" />
+    <line x1="4" y1="13" x2="20" y2="13" stroke="#dadce0" strokeWidth="0.5" />
+    <line x1="4" y1="17" x2="20" y2="17" stroke="#dadce0" strokeWidth="0.5" />
+    {/* Colores característicos de Google Calendar */}
+    <rect x="6" y="11" width="2" height="1" fill="#34A853" />
+    <rect x="10" y="11" width="2" height="1" fill="#FBBC04" />
+    <rect x="14" y="11" width="2" height="1" fill="#EA4335" />
+    <rect x="6" y="15" width="2" height="1" fill="#34A853" />
+    <rect x="10" y="15" width="2" height="1" fill="#FBBC04" />
+    <rect x="14" y="15" width="2" height="1" fill="#EA4335" />
+  </svg>
+);
+
+// Componente para el logo de WhatsApp
+const WhatsAppIcon: React.FC<{ className?: string }> = ({ className = "w-5 h-5" }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.488"
+      fill="#25D366"
+    />
+  </svg>
+);
 
 interface AdminPanelProps {
   onBackToClient: () => void;
@@ -46,6 +105,7 @@ interface ManualBookingForm {
   areaCode: string;
   phoneNumber: string;
   time: string;
+  selectedClientId?: string | null;
 }
 
 type AdminView =
@@ -64,6 +124,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
     salonConfig,
     updateSalonConfig,
     setBookings,
+    updateBookingStatus,
   } = useBookingData();
   const { admin, logout } = useAuth();
   const navigate = useNavigate();
@@ -86,9 +147,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
       areaCode: "",
       phoneNumber: "",
       time: "",
+      selectedClientId: null,
     }
   );
+  
+  // Estados para búsqueda de cliente en modal de agendar
+  const [clientSearchQuery, setClientSearchQuery] = useState("");
+  const [showNewClientFields, setShowNewClientFields] = useState(false);
+  const [showClientSearchResults, setShowClientSearchResults] = useState(false);
   const [isCreatingBooking, setIsCreatingBooking] = useState(false);
+  
+  // Estado para polling de sincronización de Google Calendar
+  const [pollingBookingId, setPollingBookingId] = useState<string | null>(null);
   const [isCreatingClient, setIsCreatingClient] = useState(false);
   const [isDeletingClient, setIsDeletingClient] = useState(false);
   const [isCancelingBooking, setIsCancelingBooking] = useState(false);
@@ -110,6 +180,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFilter, setDateFilter] = useState("");
+  
+  // Estados separados para búsqueda en historial
+  const [historySearchName, setHistorySearchName] = useState("");
+  const [historySearchPhone, setHistorySearchPhone] = useState("");
 
   // Estados para gestión de clientes
   const [showClientModal, setShowClientModal] = useState(false);
@@ -125,6 +199,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
     client: null,
     clientIndex: null,
   });
+
+  // Estados para carga masiva
+  const [showBulkImportModal, setShowBulkImportModal] = useState(false);
+  const [bulkImportFile, setBulkImportFile] = useState<File | null>(null);
+  const [bulkImportPreview, setBulkImportPreview] = useState<any>(null);
+  const [isProcessingBulkImport, setIsProcessingBulkImport] = useState(false);
 
   const [tempWorkingHours, setTempWorkingHours] = useState<WorkingHours[]>([]);
   const [hasWorkingHoursChanges, setHasWorkingHoursChanges] = useState(false);
@@ -171,8 +251,100 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
   };
 
   const formatDateShort = (dateString: string) => {
-    const date = new Date(dateString + "T00:00:00");
-    return date.toLocaleDateString("es-AR");
+    if (!dateString) return 'Sin fecha';
+    
+    try {
+      const date = new Date(dateString + "T00:00:00");
+      if (isNaN(date.getTime())) {
+        return 'Fecha inválida';
+      }
+      return date.toLocaleDateString("es-AR");
+    } catch (error) {
+      return 'Fecha inválida';
+    }
+  };
+
+  // Función para obtener el booking completo por tiempo
+  const getBookingByTime = (time: string) => {
+    return selectedDateBookings.find(booking => booking.time === time);
+  };
+
+  // Función para determinar el estado de sincronización con Google Calendar
+  const getCalendarSyncStatus = (booking: any) => {
+    if (!booking || !booking.googleEventIds) {
+      return { status: 'not_synced', icon: XIcon, color: 'text-red-500', tooltip: 'No sincronizado con Google Calendar' };
+    }
+    
+    try {
+      const eventIds = JSON.parse(booking.googleEventIds);
+      if (Array.isArray(eventIds) && eventIds.length > 0) {
+        return { status: 'synced', icon: Check, color: 'text-green-500', tooltip: 'Sincronizado con Google Calendar' };
+      }
+    } catch (error) {
+      console.error('Error parsing googleEventIds:', error);
+    }
+    
+    return { status: 'error', icon: XIcon, color: 'text-red-500', tooltip: 'Error en sincronización con Google Calendar' };
+  };
+
+
+  // Función para determinar si un cliente es nuevo (sin visitas completadas)
+  const isNewClient = (client: any) => {
+    // Un cliente es nuevo si no tiene visitas completadas
+    return !client.lastVisitDate || client.completedBookings === 0;
+  };
+
+  // Función para determinar si un cliente requiere atención especial
+  const clientRequiresAttention = (client: any) => {
+    // Un cliente requiere atención si:
+    // 1. Es nuevo (sin visitas completadas) Y
+    // 2. Fue creado desde el formulario público Y
+    // 3. NO ha sido verificado por un admin
+    return isNewClient(client) && client.source === 'booking_form' && !client.isVerified;
+  };
+
+  // Función para determinar si un turno requiere atención especial
+  // Solo resaltar turnos creados desde la vista cliente (booking_form) que sean de clientes nuevos
+  const requiresAttention = (booking: any) => {
+    // Si no hay booking, no requiere atención
+    if (!booking) {
+      return false;
+    }
+    
+    // Solo aplicar a turnos creados desde el formulario público
+    if (booking.source !== 'booking_form') {
+      return false;
+    }
+
+    const client = clients.find(c => c.phone === booking.phone);
+    
+    // Si no encontramos el cliente en la base de datos, es un cliente completamente nuevo
+    if (!client) {
+      return true;
+    }
+
+    // Si encontramos el cliente pero no tiene turnos completados, también requiere atención
+    return isNewClient(client);
+  };
+
+  // Función para determinar el estado de WhatsApp de un turno específico
+  const getWhatsAppStatus = (booking: BookingData | undefined) => {
+    if (!booking || !booking.whatsappStatus) {
+      return { status: 'not_synced', icon: XIcon, color: 'text-gray-500', tooltip: 'WhatsApp no enviado' };
+    }
+
+    switch (booking.whatsappStatus) {
+      case 'sent':
+        return { status: 'synced', icon: Check, color: 'text-green-500', tooltip: 'WhatsApp enviado exitosamente' };
+      case 'pending':
+        return { status: 'not_synced', icon: Clock, color: 'text-yellow-500', tooltip: 'WhatsApp pendiente de envío' };
+      case 'failed':
+        return { status: 'error', icon: AlertCircle, color: 'text-red-500', tooltip: 'Error al enviar WhatsApp' };
+      case 'not_sent':
+        return { status: 'not_synced', icon: XIcon, color: 'text-gray-500', tooltip: 'WhatsApp no enviado' };
+      default:
+        return { status: 'not_synced', icon: XIcon, color: 'text-gray-500', tooltip: 'Estado desconocido' };
+    }
   };
 
   const handleCancelBooking = (booking: {
@@ -246,17 +418,387 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
     }
   };
 
+  // Función para determinar si un turno ya pasó
+  const isBookingPast = (booking: BookingData): boolean => {
+    const bookingDateTime = new Date(`${booking.date}T${booking.time}:00`);
+    const now = new Date();
+    return bookingDateTime < now;
+  };
+
+  // Función para obtener información del estado de la reserva
+  const getBookingStatusInfo = (status?: BookingStatus) => {
+    // Normalizar el estado (backend puede enviar en mayúsculas)
+    const normalizedStatus = status?.toLowerCase() as BookingStatus || 'confirmed';
+    
+    switch (normalizedStatus) {
+      case 'confirmed':
+        return { 
+          label: 'Confirmada', 
+          color: 'bg-blue-100 text-blue-800', 
+          icon: CheckCircle 
+        };
+      case 'in_progress':
+        return { 
+          label: 'En Progreso', 
+          color: 'bg-yellow-100 text-yellow-800', 
+          icon: Clock 
+        };
+      case 'completed':
+        return { 
+          label: 'Completada', 
+          color: 'bg-green-100 text-green-800', 
+          icon: CheckCircle 
+        };
+      case 'cancelled':
+        return { 
+          label: 'Cancelada', 
+          color: 'bg-red-100 text-red-800', 
+          icon: X 
+        };
+      case 'no_show':
+        return { 
+          label: 'No se Presentó', 
+          color: 'bg-gray-100 text-gray-800', 
+          icon: AlertCircle 
+        };
+      default:
+        return { 
+          label: 'Confirmada', 
+          color: 'bg-blue-100 text-blue-800', 
+          icon: CheckCircle 
+        };
+    }
+  };
+
+  // Función para convertir estado a formato del backend
+  const convertStatusToBackend = (status: BookingStatus): string => {
+    const statusMap: Record<BookingStatus, string> = {
+      'confirmed': 'CONFIRMED',
+      'in_progress': 'IN_PROGRESS',
+      'completed': 'COMPLETED',
+      'cancelled': 'CANCELLED',
+      'no_show': 'NO_SHOW'
+    };
+    return statusMap[status] || 'CONFIRMED';
+  };
+
+  // Función para cambiar el estado de una reserva
+  const handleStatusChange = async (booking: BookingData, newStatus: BookingStatus) => {
+    if (!booking.id) {
+      showNotification("error", "No se puede cambiar el estado de esta reserva");
+      return;
+    }
+
+    const backendStatus = convertStatusToBackend(newStatus);
+    const success = await updateBookingStatus(booking.id, backendStatus);
+    if (success) {
+      const statusLabels = {
+        confirmed: "confirmada",
+        in_progress: "en progreso",
+        completed: "completada",
+        cancelled: "cancelada",
+        no_show: "marcada como no se presentó"
+      };
+      
+      showNotification(
+        "success",
+        `Cita de ${booking.client?.name || booking.name || 'el cliente'} ${statusLabels[newStatus]}`
+      );
+    } else {
+      showNotification("error", "Error al cambiar el estado de la reserva");
+    }
+  };
+
+  // Componente para menú unificado de acciones de reserva
+  const BookingActionsMenu: React.FC<{ booking: BookingData; allowDelete?: boolean }> = ({ booking, allowDelete = true }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+    const [dropdownUp, setDropdownUp] = useState(false);
+    const menuRef = React.useRef<HTMLDivElement>(null);
+    const isPast = isBookingPast(booking);
+    // Normalizar el estado para las comparaciones
+    const normalizedStatus = booking.status?.toLowerCase() as BookingStatus || 'confirmed';
+
+    // Cerrar dropdown al hacer clic fuera
+    React.useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+        if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+          setIsOpen(false);
+        }
+      };
+
+      if (isOpen) {
+        document.addEventListener('mousedown', handleClickOutside);
+      }
+
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }, [isOpen]);
+
+    const handleAction = (action: string) => {
+      switch (action) {
+        case 'completed':
+          handleStatusChange(booking, 'completed');
+          break;
+        case 'cancelled':
+          setShowCancelConfirm(true);
+          break;
+        case 'no_show':
+          handleStatusChange(booking, 'no_show');
+          break;
+        case 'delete':
+          setShowDeleteConfirm(true);
+          break;
+      }
+      setIsOpen(false);
+    };
+
+    const confirmDelete = () => {
+      handleCancelBooking({
+        date: booking.date,
+        time: booking.time,
+        name: booking.name,
+        phone: booking.phone
+      });
+      setShowDeleteConfirm(false);
+    };
+
+    const confirmCancel = () => {
+      handleStatusChange(booking, 'cancelled');
+      setShowCancelConfirm(false);
+    };
+
+    // Determinar si hay acciones disponibles
+    const hasActions = normalizedStatus === 'confirmed';
+    const statusInfo = getBookingStatusInfo(booking.status);
+    const StatusIcon = statusInfo.icon;
+
+    return (
+      <div className="relative" ref={menuRef}>
+        {/* Mostrar estado siempre */}
+        <div className="mb-2 px-1">
+          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
+            <StatusIcon className="w-3 h-3" />
+            {statusInfo.label}
+          </span>
+        </div>
+
+        {/* Mostrar botón de acciones solo si hay acciones disponibles */}
+        {hasActions && (
+          <button
+            onClick={(e) => {
+              // Detectar si el botón está cerca del borde inferior
+              const button = e.currentTarget;
+              const rect = button.getBoundingClientRect();
+              const viewportHeight = window.innerHeight;
+              const spaceBelow = viewportHeight - rect.bottom;
+              const spaceAbove = rect.top;
+              
+              // Si hay menos de 200px abajo y hay más espacio arriba, abrir hacia arriba
+              if (spaceBelow < 200 && spaceAbove > 200) {
+                setDropdownUp(true);
+              } else {
+                setDropdownUp(false);
+              }
+              
+              setIsOpen(!isOpen);
+            }}
+            className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm font-medium text-gray-700"
+          >
+            <Settings className="w-4 h-4" />
+            Acciones
+            <ChevronDown className="w-3 h-3" />
+          </button>
+        )}
+
+        {isOpen && (
+          <div className={`absolute ${dropdownUp ? 'bottom-full mb-1' : 'top-full mt-1'} right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[220px]`}>
+            <div className="py-1">
+              {/* Acciones de estado */}
+              <div className="py-1">
+                {/* Si está confirmado, mostrar opciones según contexto */}
+                {normalizedStatus === 'confirmed' && (
+                  <>
+                    {/* En historial: solo completada y no_show */}
+                    {isPast && (
+                      <>
+                        <button
+                          onClick={() => handleAction('completed')}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-green-50 transition-colors text-green-700"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          <span className="text-sm">Marcar como Completada</span>
+                        </button>
+                        <button
+                          onClick={() => handleAction('no_show')}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-gray-50 transition-colors text-gray-700"
+                        >
+                          <AlertCircle className="w-4 h-4" />
+                          <span className="text-sm">No se Presentó</span>
+                        </button>
+                      </>
+                    )}
+                    
+                    {/* En Hoy/Agenda: solo cancelar */}
+                    {!isPast && (
+                      <button
+                        onClick={() => handleAction('cancelled')}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-red-50 transition-colors text-red-700"
+                      >
+                        <X className="w-4 h-4" />
+                        <span className="text-sm">Cancelar Turno</span>
+                      </button>
+                    )}
+                  </>
+                )}
+
+                {/* Si ya está completada, cancelada o no_show, no mostrar acciones de estado */}
+                {normalizedStatus !== 'confirmed' && (
+                  <div className="px-3 py-2 text-sm text-gray-500 text-center">
+                    Estado final - Sin acciones disponibles
+                  </div>
+                )}
+              </div>
+
+              {/* Separador */}
+              <div className="border-t border-gray-100 my-1"></div>
+
+              {/* Acción destructiva */}
+              {allowDelete && (
+                <button
+                  onClick={() => handleAction('delete')}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-red-50 transition-colors text-red-700"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span className="text-sm">Eliminar Reserva</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Modal de confirmación para eliminar */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                  <Trash2 className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    Eliminar Reserva
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Esta acción no se puede deshacer
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <p className="text-sm text-gray-700">
+                  <strong>Cliente:</strong> {booking.client?.name || booking.name}
+                </p>
+                <p className="text-sm text-gray-700">
+                  <strong>Fecha:</strong> {formatDate(booking.date)}
+                </p>
+                <p className="text-sm text-gray-700">
+                  <strong>Hora:</strong> {formatTime(booking.time)}
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition-colors font-medium"
+                >
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de confirmación para cancelar */}
+        {showCancelConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                  <X className="w-5 h-5 text-orange-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    Cancelar Turno
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    El turno quedará marcado como cancelado
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <p className="text-sm text-gray-700">
+                  <strong>Cliente:</strong> {booking.client?.name || booking.name || 'el cliente'}
+                </p>
+                <p className="text-sm text-gray-700">
+                  <strong>Fecha:</strong> {formatDate(booking.date)}
+                </p>
+                <p className="text-sm text-gray-700">
+                  <strong>Hora:</strong> {formatTime(booking.time)}
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowCancelConfirm(false)}
+                  className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                >
+                  No Cancelar
+                </button>
+                <button
+                  onClick={confirmCancel}
+                  className="flex-1 bg-orange-600 text-white py-2 px-4 rounded-lg hover:bg-orange-700 transition-colors font-medium"
+                >
+                  Sí, Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const handleManualBooking = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (
-      !manualBookingForm.name ||
-      !manualBookingForm.areaCode ||
-      !manualBookingForm.phoneNumber ||
-      !manualBookingForm.time
-    ) {
-      showNotification("error", "Por favor completa todos los campos");
-      return;
+    // Validación diferente según si hay cliente seleccionado o es nuevo
+    if (manualBookingForm.selectedClientId) {
+      // Cliente existente seleccionado
+      if (!manualBookingForm.time) {
+        showNotification("error", "Por favor selecciona un horario");
+        return;
+      }
+    } else {
+      // Nuevo cliente - validar todos los campos
+      if (
+        !manualBookingForm.name ||
+        !manualBookingForm.areaCode ||
+        !manualBookingForm.phoneNumber ||
+        !manualBookingForm.time
+      ) {
+        showNotification("error", "Por favor completa todos los campos");
+        return;
+      }
     }
 
     // Evitar múltiples envíos
@@ -266,16 +808,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
 
     setIsCreatingBooking(true);
 
-    // Formatear el teléfono completo y normalizarlo
-    const fullPhone = `+54 9 ${manualBookingForm.areaCode} ${manualBookingForm.phoneNumber}`;
-    const normalizedPhone = fullPhone.replace(/\D/g, ''); // Remover todos los caracteres no numéricos
-    const finalPhone = `+${normalizedPhone}`;
+    let finalPhone: string;
+    
+    if (manualBookingForm.selectedClientId) {
+      // Usar teléfono del cliente seleccionado
+      const selectedClient = clients.find(c => c.id === manualBookingForm.selectedClientId);
+      if (!selectedClient) {
+        showNotification("error", "Cliente no encontrado");
+        setIsCreatingBooking(false);
+        return;
+      }
+      finalPhone = selectedClient.phone;
+    } else {
+      // Formatear el teléfono completo y normalizarlo
+      const fullPhone = `+54 9 ${manualBookingForm.areaCode} ${manualBookingForm.phoneNumber}`;
+      const normalizedPhone = fullPhone.replace(/\D/g, ''); // Remover todos los caracteres no numéricos
+      finalPhone = `+${normalizedPhone}`;
+    }
 
     const bookingData: BookingData = {
       name: manualBookingForm.name,
       phone: finalPhone,
       date: currentView === "today" ? todayString : selectedDateString,
       time: manualBookingForm.time,
+      status: 'confirmed' as BookingStatus,
+      source: 'admin_panel', // Indicar que viene del admin panel
+      sourceDetails: 'Turno creado desde panel de administración'
     };
 
     try {
@@ -285,28 +843,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
       if (response.success) {
         // Actualizar el estado local con la nueva reserva
         if (response.data) {
-          setBookings((prev) => [...prev, response.data as BookingData]);
+          const newBooking = response.data as BookingData;
+          setBookings((prev) => [...prev, newBooking]);
+          
+          // Si el booking no tiene googleEventIds, iniciar polling
+          if (!(newBooking as any).googleEventIds && newBooking.id) {
+            setPollingBookingId(String(newBooking.id));
+          }
         }
 
         // Recargar clientes para actualizar estadísticas
         await loadClients();
         
-        // Si estamos en la vista de clientes, forzar re-render
-        if (currentView === "clients") {
-          // Pequeño delay para asegurar que el backend haya procesado todo
-          setTimeout(() => {
-            loadClients();
-          }, 500);
-        } else {
-          // Si no estamos en la vista de clientes, cambiar a ella para mostrar el nuevo cliente
-          updateCurrentView("clients");
-        }
+        // Recargar clientes para actualizar estadísticas, pero mantener la vista actual
+        setTimeout(() => {
+          loadClients();
+        }, 500);
 
-        showNotification(
-          "success",
-          `Turno agendado para ${manualBookingForm.name} a las ${manualBookingForm.time}. Cliente agregado automáticamente.`
-        );
-        setManualBookingForm({ name: "", areaCode: "", phoneNumber: "", time: "" });
+        const clientMessage = manualBookingForm.selectedClientId 
+          ? `Turno agendado para ${manualBookingForm.name} a las ${manualBookingForm.time}.`
+          : `Turno agendado para ${manualBookingForm.name} a las ${manualBookingForm.time}. Cliente agregado automáticamente.`;
+
+        showNotification("success", clientMessage);
+        
+        // Resetear formulario
+        setManualBookingForm({ name: "", areaCode: "", phoneNumber: "", time: "", selectedClientId: null });
+        setClientSearchQuery("");
+        setShowNewClientFields(false);
+        setShowClientSearchResults(false);
         setShowManualBooking(false);
       } else {
         showNotification(
@@ -325,6 +889,60 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
   const showNotification = (type: "success" | "error", message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 5000);
+  };
+
+  // Filtrar clientes para búsqueda en modal de agendar
+  const getFilteredClientsForBooking = () => {
+    if (!clientSearchQuery.trim()) {
+      return [];
+    }
+    const query = clientSearchQuery.toLowerCase().trim();
+    return clients.filter(
+      (client) =>
+        client.name.toLowerCase().includes(query) ||
+        client.phone.includes(query)
+    ).slice(0, 5); // Limitar a 5 resultados
+  };
+
+  // Seleccionar cliente del resultado de búsqueda
+  const handleSelectClient = (client: any) => {
+    setManualBookingForm({
+      ...manualBookingForm,
+      name: client.name,
+      selectedClientId: client.id,
+      // No necesitamos areaCode ni phoneNumber si es cliente existente
+    });
+    setClientSearchQuery(client.name);
+    setShowClientSearchResults(false);
+    setShowNewClientFields(false);
+  };
+
+  // Manejar cambio en búsqueda de cliente
+  const handleClientSearchChange = (value: string) => {
+    setClientSearchQuery(value);
+    
+    // Si hay texto, mostrar resultados
+    if (value.trim()) {
+      setShowClientSearchResults(true);
+      setShowNewClientFields(false);
+    } else {
+      setShowClientSearchResults(false);
+      // Si limpió el campo, resetear cliente seleccionado
+      setManualBookingForm({
+        ...manualBookingForm,
+        selectedClientId: null,
+        name: "",
+      });
+    }
+  };
+
+  // Resetear formulario cuando se cierra el modal
+  const handleCloseManualBooking = () => {
+    setShowManualBooking(false);
+    setManualBookingForm({ name: "", areaCode: "", phoneNumber: "", time: "", selectedClientId: null });
+    setClientSearchQuery("");
+    setShowNewClientFields(false);
+    setShowClientSearchResults(false);
   };
 
   // Cargar clientes del backend
@@ -351,8 +969,68 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
     loadClients();
   }, []);
 
+  // Polling para verificar sincronización con Google Calendar
+  React.useEffect(() => {
+    if (!pollingBookingId) return;
+
+    let pollCount = 0;
+    const maxPolls = 10; // Máximo 10 intentos (10 segundos)
+    const pollInterval = 1000; // Cada 1 segundo
+
+    const pollSyncStatus = async () => {
+      try {
+        // Obtener todos los bookings para encontrar el actualizado
+        const response = await bookingService.getBookings();
+        
+        if (response.success && response.data) {
+          const bookings = Array.isArray(response.data) ? response.data : [];
+          const updatedBooking = bookings.find((b: BookingData) => String(b.id) === pollingBookingId);
+          
+          if (updatedBooking && (updatedBooking as any).googleEventIds) {
+            // Booking sincronizado, actualizar en el estado
+            setBookings((prev) =>
+              prev.map((b) => (String(b.id) === pollingBookingId ? updatedBooking : b))
+            );
+            setPollingBookingId(null); // Detener polling
+            return;
+          }
+        }
+
+        pollCount++;
+        if (pollCount >= maxPolls) {
+          // Detener polling después de max intentos
+          setPollingBookingId(null);
+        }
+      } catch (error) {
+        console.error("Error polling sync status:", error);
+        setPollingBookingId(null); // Detener polling en caso de error
+      }
+    };
+
+    // Iniciar polling inmediatamente y luego cada intervalo
+    pollSyncStatus();
+    const intervalId = setInterval(pollSyncStatus, pollInterval);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [pollingBookingId]);
+
   const availableSlots = selectedDateSlots.filter((slot) => slot.available);
-  const occupiedSlots = selectedDateSlots.filter((slot) => !slot.available);
+  // Filtrar turnos ocupados para mostrar solo los que no han pasado
+  const occupiedSlots = selectedDateSlots.filter((slot) => {
+    if (slot.available) return false;
+    
+    // Buscar el booking correspondiente
+    const booking = allBookings.find(b => b.date === selectedDateString && b.time === slot.time);
+    if (!booking) return false;
+    
+    // Solo mostrar si no ha pasado la hora
+    return !isBookingPast(booking);
+  });
+  
+  // Obtener bookings completos para la fecha seleccionada
+  const selectedDateBookings = allBookings.filter(booking => booking.date === selectedDateString);
 
   // Para la vista de hoy
   const todaySlots = getAvailableSlots(today);
@@ -437,6 +1115,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
 
   const renderWeeklyView = () => (
     <div className="grid gap-8">
+      {/* Loading while config is not ready to avoid false "Descanso" */}
+      {!salonConfig ? (
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <div className="text-center py-16">
+            <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <h3 className="text-2xl font-bold text-gray-800 mb-3">
+              Cargando agenda semanal...
+            </h3>
+            <p className="text-gray-600 text-lg">
+              Obteniendo configuración y turnos
+            </p>
+          </div>
+        </div>
+      ) : null}
       <h2 className="text-2xl font-bold text-gray-800">Agenda</h2>
 
       {/* Navegación por todos los días */}
@@ -599,6 +1293,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                                   <div className="font-semibold text-blue-800 flex items-center gap-2">
                                     <User className="w-4 h-4" />
                                     {slotData.clientName}
+                                    {(() => {
+                                      const booking = allBookings.find(b => b.date === selectedDateString && b.time === timeSlot.time);
+                                      const client = clients.find(c => c.phone === slotData.clientPhone);
+                                      
+                                      if (requiresAttention(booking)) {
+                                        return (
+                                          <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full font-medium animate-pulse">
+                                            ⚠️ VERIFICAR
+                                          </span>
+                                        );
+                                      }
+                                      
+                                      if (client && clientRequiresAttention(client)) {
+                                        return (
+                                          <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded-full font-medium animate-pulse">
+                                            ⚠️ REQUIERE ATENCIÓN
+                                          </span>
+                                        );
+                                      }
+                                      
+                                      return null;
+                                    })()}
                                   </div>
                                   <div className="text-sm text-blue-600 flex items-center gap-2 mt-1">
                                     <Phone className="w-3 h-3" />
@@ -655,10 +1371,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                     </svg>
                   </div>
                   <h3 className="text-2xl font-bold text-gray-800 mb-3">
-                    ¡Hoy no se trabaja!
+                    ¡No se trabaja!
                   </h3>
                   <p className="text-gray-600 text-lg mb-4">
-                    Aprovecha este día para descansar y recargar energías
+                    Aprovecha este día para descansar
                   </p>
                   <div className="text-sm text-gray-500">
                     {formatDayName(selectedDate)} {formatDayDate(selectedDate)}
@@ -709,27 +1425,83 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                                   <div className="flex items-center gap-2 text-gray-600">
                                     <User className="w-4 h-4" />
                                     <span>{slot.clientName}</span>
+                                    {(() => {
+                                      const booking = allBookings.find(b => b.date === selectedDateString && b.time === slot.time);
+                                      const client = clients.find(c => c.phone === slot.clientPhone);
+                                      
+                                      if (requiresAttention(booking)) {
+                                        return (
+                                          <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full font-medium animate-pulse">
+                                            ⚠️ VERIFICAR
+                                          </span>
+                                        );
+                                      }
+                                      
+                                      if (client && clientRequiresAttention(client)) {
+                                        return (
+                                          <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded-full font-medium animate-pulse">
+                                            ⚠️ REQUIERE ATENCIÓN
+                                          </span>
+                                        );
+                                      }
+                                      
+                                      return null;
+                                    })()}
                                   </div>
                                   <div className="flex items-center gap-2 text-gray-600">
                                     <Phone className="w-4 h-4" />
                                     <span>{slot.clientPhone}</span>
                                   </div>
+                                  {/* Indicador de sincronización con Google Calendar */}
+                                  {(() => {
+                                    const booking = getBookingByTime(slot.time);
+                                    const syncStatus = getCalendarSyncStatus(booking);
+                                    const IconComponent = syncStatus.icon;
+                                    return (
+                                      <div className="flex flex-col gap-1">
+                                        <div className="flex items-center gap-2 text-gray-600">
+                                          <GoogleCalendarIcon className="w-4 h-4" />
+                                          <div className="flex items-center gap-1">
+                                            <IconComponent className={`w-4 h-4 ${syncStatus.color}`} />
+                                            <span className="text-xs text-gray-500">
+                                              {syncStatus.status === 'synced' ? 'Sincronizado' : 
+                                               syncStatus.status === 'not_synced' ? 'No sincronizado' : 'Error'}
+                                            </span>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-gray-600">
+                                          <WhatsAppIcon className="w-4 h-4" />
+                                        <div className="flex items-center gap-1">
+                                          {(() => {
+                                            const whatsappStatus = getWhatsAppStatus(booking);
+                                            const WhatsAppIconComponent = whatsappStatus.icon;
+                                            return (
+                                              <>
+                                                <WhatsAppIconComponent className={`w-4 h-4 ${whatsappStatus.color}`} />
+                                                <span className="text-xs text-gray-500">
+                                                  {whatsappStatus.status === 'synced' ? 'Enviado' : 
+                                                   whatsappStatus.status === 'not_synced' ? 'Pendiente' : 'Error'}
+                                                </span>
+                                              </>
+                                            );
+                                          })()}
+                                        </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                               </div>
 
-                              <button
-                                onClick={() =>
-                                  handleCancelBooking({
-                                    date: selectedDateString,
-                                    time: slot.time,
-                                    name: slot.clientName,
-                                  })
-                                }
-                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                title="Cancelar turno"
-                              >
-                                <Trash2 className="w-5 h-5" />
-                              </button>
+                              <div className="flex items-center gap-2">
+                                {/* Menú unificado de acciones */}
+                                {(() => {
+                                  const booking = allBookings.find(b => b.date === selectedDateString && b.time === slot.time);
+                                  return booking ? (
+                                    <BookingActionsMenu booking={booking} allowDelete={false} />
+                                  ) : null;
+                                })()}
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -787,15 +1559,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
   const getFilteredHistory = () => {
     let filtered = allBookings;
 
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (booking) => {
-          const clientName = booking.client?.name || booking.name;
-          const clientPhone = booking.client?.phone || booking.phone;
-          return clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                 clientPhone.includes(searchTerm);
-        }
-      );
+    // Filtrar por nombre
+    if (historySearchName) {
+      filtered = filtered.filter((booking) => {
+        const clientName = booking.client?.name || booking.name || "";
+        return clientName.toLowerCase().includes(historySearchName.toLowerCase());
+      });
+    }
+
+    // Filtrar por teléfono
+    if (historySearchPhone) {
+      filtered = filtered.filter((booking) => {
+        const clientPhone = booking.client?.phone || booking.phone || "";
+        return clientPhone.includes(historySearchPhone);
+      });
     }
 
     if (dateFilter) {
@@ -844,11 +1621,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
       booking.date.startsWith(thisMonth)
     ).length;
 
-    // Horarios más populares
-    const timeStats = allBookings.reduce((acc, booking) => {
-      acc[booking.time] = (acc[booking.time] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    // Contar turnos por estado
+    const cancelledBookings = allBookings.filter(
+      (booking) => booking.status?.toLowerCase() === 'cancelled'
+    ).length;
+    const completedBookings = allBookings.filter(
+      (booking) => booking.status?.toLowerCase() === 'completed'
+    ).length;
+    const confirmedBookings = allBookings.filter(
+      (booking) => booking.status?.toLowerCase() === 'confirmed'
+    ).length;
+    const noShowBookings = allBookings.filter(
+      (booking) => booking.status?.toLowerCase() === 'no_show'
+    ).length;
+
+    // Horarios más populares (excluyendo cancelados y no_show)
+    const timeStats = allBookings
+      .filter((booking) => {
+        const status = booking.status?.toLowerCase();
+        return status !== 'cancelled' && status !== 'no_show';
+      })
+      .reduce((acc, booking) => {
+        acc[booking.time] = (acc[booking.time] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
 
     const popularTimes = Object.entries(timeStats)
       .sort(([, a], [, b]) => b - a)
@@ -859,6 +1655,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
       uniqueClients,
       monthlyBookings,
       popularTimes,
+      cancelledBookings,
+      completedBookings,
+      confirmedBookings,
+      noShowBookings,
     };
   };
 
@@ -882,7 +1682,64 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
     setEditingClientIndex(null);
   };
 
-  const handleClientSubmit = async (clientData: { name: string; areaCode: string; phoneNumber: string }) => {
+  // Funciones para carga masiva
+  const handleOpenBulkImport = () => {
+    setShowBulkImportModal(true);
+    setBulkImportFile(null);
+    setBulkImportPreview(null);
+  };
+
+  const handleCloseBulkImport = () => {
+    setShowBulkImportModal(false);
+    setBulkImportFile(null);
+    setBulkImportPreview(null);
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setBulkImportFile(file);
+      // Aquí podrías agregar una función para hacer preview del archivo
+    }
+  };
+
+  const handleBulkImport = async () => {
+    if (!bulkImportFile) return;
+
+    setIsProcessingBulkImport(true);
+    try {
+      const result = await clientService.bulkImportClients(bulkImportFile);
+
+      if (result.success) {
+        setNotification({
+          type: 'success',
+          message: result.message || 'Clientes importados exitosamente'
+        });
+        handleCloseBulkImport();
+        // Recargar la lista de clientes
+        loadClients();
+      } else {
+        if (result.preview) {
+          // Mostrar preview de errores
+          setBulkImportPreview(result.preview);
+        } else {
+          setNotification({
+            type: 'error',
+            message: result.error || 'Error al importar clientes'
+          });
+        }
+      }
+    } catch (error) {
+      setNotification({
+        type: 'error',
+        message: 'Error al procesar el archivo'
+      });
+    } finally {
+      setIsProcessingBulkImport(false);
+    }
+  };
+
+  const handleClientSubmit = async (clientData: { name: string; areaCode: string; phoneNumber: string; isVerified?: boolean }) => {
     // Evitar múltiples envíos
     if (isCreatingClient) {
       return;
@@ -902,6 +1759,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
         const response = await clientService.createClient({
           name: clientData.name,
           phone: finalPhone,
+          source: 'admin_panel' // Marcar que viene del admin para que se verifique automáticamente
         });
 
         console.log("📥 Respuesta del servidor:", response);
@@ -920,16 +1778,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
         const client = getFilteredClients()[editingClientIndex];
         if (client && client.id) {
           console.log("📤 Enviando request para actualizar cliente...");
-          const response = await clientService.updateClient(client.id, {
+          const updateData: { name: string; phone: string; isVerified?: boolean } = {
             name: clientData.name,
             phone: finalPhone,
-          });
+          };
+
+          // Si se envió isVerified, incluirlo en la actualización
+          if (clientData.isVerified !== undefined) {
+            updateData.isVerified = clientData.isVerified;
+          }
+
+          const response = await clientService.updateClient(client.id, updateData);
 
           console.log("📥 Respuesta del servidor:", response);
 
           if (response.success) {
             console.log("✅ Cliente actualizado exitosamente");
-            showNotification("success", "Cliente actualizado exitosamente");
+            const message = clientData.isVerified !== undefined && clientData.isVerified
+              ? "Cliente actualizado y verificado exitosamente"
+              : "Cliente actualizado exitosamente";
+            showNotification("success", message);
             // Recargar clientes del backend
             await loadClients();
             handleCloseClientModal(); // Cerrar modal solo después del éxito
@@ -1153,12 +2021,41 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
     // Para la vista de hoy, siempre usar la fecha actual
     const todaySlots = getAvailableSlots(today);
     const todayAvailableSlots = todaySlots.filter((slot) => slot.available);
-    const todayOccupiedSlots = todaySlots.filter((slot) => !slot.available);
+    // Filtrar turnos ocupados para mostrar solo los que no han pasado
+    const todayOccupiedSlots = todaySlots.filter((slot) => {
+      if (slot.available) return false;
+      
+      // Buscar el booking correspondiente
+      const booking = allBookings.find(b => b.date === todayString && b.time === slot.time);
+      if (!booking) return false;
+      
+      // Solo mostrar si no ha pasado la hora
+      return !isBookingPast(booking);
+    });
 
     const getTodaySlotStatus = (time: string) => {
       const slot = todaySlots.find((s) => s.time === time);
       return slot;
     };
+
+    // Si los datos aún no están cargados, mostrar loading
+    if (!salonConfig) {
+      return (
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <div className="text-center py-16">
+            <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <h3 className="text-2xl font-bold text-gray-800 mb-3">
+              Cargando agenda...
+            </h3>
+            <p className="text-gray-600 text-lg">
+              Obteniendo información de turnos
+            </p>
+          </div>
+        </div>
+      );
+    }
 
     // Si hoy no es un día laboral, mostrar mensaje de descanso
     if (!isTodayWorkingDay()) {
@@ -1175,7 +2072,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
               ¡Hoy no se trabaja!
             </h3>
             <p className="text-gray-600 text-lg mb-4">
-              Aprovecha este día para descansar y recargar energías
+              Aprovecha este día para descansar
             </p>
           </div>
         </div>
@@ -1256,6 +2153,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                                     <div className="font-semibold text-blue-800 flex items-center gap-2">
                                       <User className="w-4 h-4" />
                                       {slotData.clientName}
+                                      {(() => {
+                                        const booking = allBookings.find(b => b.date === todayString && b.time === timeSlot.time);
+                                        const client = clients.find(c => c.phone === slotData.clientPhone);
+                                        
+                                        if (requiresAttention(booking)) {
+                                          return (
+                                            <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full font-medium animate-pulse">
+                                              ⚠️ VERIFICAR
+                                            </span>
+                                          );
+                                        }
+                                        
+                                        if (client && clientRequiresAttention(client)) {
+                                          return (
+                                            <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded-full font-medium animate-pulse">
+                                              ⚠️ REQUIERE ATENCIÓN
+                                            </span>
+                                          );
+                                        }
+                                        
+                                        return null;
+                                      })()}
                                     </div>
                                     <div className="text-sm text-blue-600 flex items-center gap-2 mt-1">
                                       <Phone className="w-3 h-3" />
@@ -1342,27 +2261,83 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                                 <div className="flex items-center gap-2 text-gray-600">
                                   <User className="w-4 h-4" />
                                   <span>{slot.clientName}</span>
+                                  {(() => {
+                                    const booking = allBookings.find(b => b.date === todayString && b.time === slot.time);
+                                    const client = clients.find(c => c.phone === slot.clientPhone);
+                                    
+                                    if (requiresAttention(booking)) {
+                                      return (
+                                        <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full font-medium animate-pulse">
+                                          ⚠️ VERIFICAR
+                                        </span>
+                                      );
+                                    }
+                                    
+                                    if (client && clientRequiresAttention(client)) {
+                                      return (
+                                        <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded-full font-medium animate-pulse">
+                                          ⚠️ REQUIERE ATENCIÓN
+                                        </span>
+                                      );
+                                    }
+                                    
+                                    return null;
+                                  })()}
                                 </div>
                                 <div className="flex items-center gap-2 text-gray-600">
                                   <Phone className="w-4 h-4" />
                                   <span>{slot.clientPhone}</span>
                                 </div>
+                                {/* Indicador de sincronización con Google Calendar */}
+                                {(() => {
+                                  const booking = allBookings.find(b => b.date === todayString && b.time === slot.time);
+                                  const syncStatus = getCalendarSyncStatus(booking);
+                                  const IconComponent = syncStatus.icon;
+                                  return (
+                                    <div className="flex flex-col gap-1">
+                                      <div className="flex items-center gap-2 text-gray-600">
+                                        <GoogleCalendarIcon className="w-4 h-4" />
+                                        <div className="flex items-center gap-1">
+                                          <IconComponent className={`w-4 h-4 ${syncStatus.color}`} />
+                                          <span className="text-xs text-gray-500">
+                                            {syncStatus.status === 'synced' ? 'Sincronizado' : 
+                                             syncStatus.status === 'not_synced' ? 'No sincronizado' : 'Error'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-2 text-gray-600">
+                                        <WhatsAppIcon className="w-4 h-4" />
+                                        <div className="flex items-center gap-1">
+                                          {(() => {
+                                            const whatsappStatus = getWhatsAppStatus(booking);
+                                            const WhatsAppIconComponent = whatsappStatus.icon;
+                                            return (
+                                              <>
+                                                <WhatsAppIconComponent className={`w-4 h-4 ${whatsappStatus.color}`} />
+                                                <span className="text-xs text-gray-500">
+                                                  {whatsappStatus.status === 'synced' ? 'Enviado' : 
+                                                   whatsappStatus.status === 'not_synced' ? 'Pendiente' : 'Error'}
+                                                </span>
+                                              </>
+                                            );
+                                          })()}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             </div>
 
-                            <button
-                              onClick={() =>
-                                handleCancelBooking({
-                                  date: todayString,
-                                  time: slot.time,
-                                  name: slot.clientName,
-                                })
-                              }
-                              className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Cancelar turno"
-                            >
-                              <Trash2 className="w-5 h-5" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                              {/* Menú unificado de acciones */}
+                              {(() => {
+                                const booking = allBookings.find(b => b.date === todayString && b.time === slot.time);
+                                return booking ? (
+                                  <BookingActionsMenu booking={booking} allowDelete={false} />
+                                ) : null;
+                              })()}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1436,19 +2411,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
     const filteredHistory = getFilteredHistory();
 
     return (
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+      <div className="bg-white rounded-xl shadow-lg p-6 flex flex-col" style={{ maxHeight: 'calc(100vh - 75px)' }}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4 flex-shrink-0">
           <h3 className="text-lg font-semibold text-gray-800">
             Historial de Turnos
           </h3>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
             <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <User className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Buscar por nombre o teléfono..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar por nombre..."
+                value={historySearchName}
+                onChange={(e) => setHistorySearchName(e.target.value)}
+                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full sm:w-auto"
+              />
+            </div>
+            <div className="relative">
+              <Phone className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Buscar por teléfono..."
+                value={historySearchPhone}
+                onChange={(e) => setHistorySearchPhone(e.target.value)}
                 className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full sm:w-auto"
               />
             </div>
@@ -1461,10 +2446,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                 className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full sm:w-auto"
               />
             </div>
-            {(searchTerm || dateFilter) && (
+            {(historySearchName || historySearchPhone || dateFilter) && (
               <button
                 onClick={() => {
-                  setSearchTerm("");
+                  setHistorySearchName("");
+                  setHistorySearchPhone("");
                   setDateFilter("");
                 }}
                 className="px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
@@ -1484,7 +2470,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
             </p>
           </div>
         ) : (
-          <div className="space-y-3 max-h-96 overflow-y-auto">
+          <div className="space-y-3 overflow-y-auto pb-2 flex-1 min-h-0">
             {filteredHistory.map((booking, index) => (
               <div
                 key={index}
@@ -1496,32 +2482,60 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                       <Clock className="w-6 h-6 text-gray-600" />
                     </div>
                     <div>
-                      <div className="font-semibold text-gray-800">
+                      <div className="font-semibold text-gray-800 flex items-center gap-2">
                         {booking.client?.name || booking.name}
+                        {(() => {
+                          const client = clients.find(c => c.phone === (booking.client?.phone || booking.phone));
+                          return client && clientRequiresAttention(client) ? (
+                            <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full font-medium animate-pulse">
+                              ⚠️ REQUIERE ATENCIÓN
+                            </span>
+                          ) : null;
+                        })()}
                       </div>
                       <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-gray-600">
                         <span>{formatDateShort(booking.date)}</span>
                         <span>{formatTime(booking.time)}</span>
                         <span>{booking.client?.phone || booking.phone}</span>
+                        {/* Indicador de sincronización con Google Calendar */}
+                        {(() => {
+                          const syncStatus = getCalendarSyncStatus(booking);
+                          const IconComponent = syncStatus.icon;
+                          return (
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-1">
+                                <GoogleCalendarIcon className="w-4 h-4" />
+                                <IconComponent className={`w-4 h-4 ${syncStatus.color}`} />
+                                <span className="text-xs text-gray-500">
+                                  {syncStatus.status === 'synced' ? 'Sincronizado' : 
+                                   syncStatus.status === 'not_synced' ? 'No sincronizado' : 'Error'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <WhatsAppIcon className="w-4 h-4" />
+                                {(() => {
+                                  const whatsappStatus = getWhatsAppStatus(booking);
+                                  const WhatsAppIconComponent = whatsappStatus.icon;
+                                  return (
+                                    <>
+                                      <WhatsAppIconComponent className={`w-4 h-4 ${whatsappStatus.color}`} />
+                                      <span className="text-xs text-gray-500">
+                                        {whatsappStatus.status === 'synced' ? 'Enviado' : 
+                                         whatsappStatus.status === 'not_synced' ? 'Pendiente' : 'Error'}
+                                      </span>
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        booking.date === todayString
-                          ? "bg-blue-100 text-blue-800"
-                          : booking.date > todayString
-                          ? "bg-green-100 text-green-800"
-                          : "bg-gray-100 text-gray-800"
-                      }`}
-                    >
-                      {booking.date === todayString
-                        ? "Hoy"
-                        : booking.date > todayString
-                        ? "Próximo"
-                        : "Completado"}
-                    </div>
+                  <div className="text-right flex items-center gap-3">
+                    {/* Mostrar siempre el componente, internamente decide si mostrar el botón */}
+                    <BookingActionsMenu booking={booking} allowDelete={false} />
                   </div>
                 </div>
               </div>
@@ -1559,6 +2573,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
               <UserPlus className="w-4 h-4" />
               Agregar Cliente
             </button>
+            <button
+              onClick={handleOpenBulkImport}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+            >
+              <Users className="w-4 h-4" />
+              Carga Masiva
+            </button>
           </div>
         </div>
 
@@ -1576,13 +2597,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                 className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
               >
                 <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-1">
                     <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                       <User className="w-5 h-5 text-blue-600" />
                     </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-800">
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-800 flex items-center gap-2">
                         {client.name}
+                        {clientRequiresAttention(client) && (
+                          <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full font-medium animate-pulse">
+                            ⚠️ REQUIERE ATENCIÓN
+                          </span>
+                        )}
                       </h4>
                       <p className="text-sm text-gray-600">{client.phone}</p>
                     </div>
@@ -1591,9 +2617,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
 
                 <div className="space-y-2 text-sm text-gray-600">
                   <div className="flex justify-between">
-                    <span>Total visitas:</span>
+                    <span>Total turnos:</span>
                     <span className="font-medium text-blue-600">
                       {client.totalBookings}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Visitas completadas:</span>
+                    <span className="font-medium text-green-600">
+                      {client.completedBookings || 0}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -1604,13 +2636,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                     <span>Cliente desde:</span>
                     <span>{formatDateShort(client.firstVisit)}</span>
                   </div>
+                  <div className="flex justify-between">
+                    <span>Origen:</span>
+                    <span className="font-medium">
+                      {client.source === 'manual' && 'Manual'}
+                      {client.source === 'booking_form' && 'Formulario'}
+                      {client.source === 'bulk_import' && 'Carga Masiva'}
+                      {client.source === 'admin_panel' && 'Panel Admin'}
+                    </span>
+                  </div>
+                  {client.sourceDetails && (
+                    <div className="flex justify-between">
+                      <span>Detalles:</span>
+                      <span className="text-xs text-gray-500 max-w-32 truncate" title={client.sourceDetails}>
+                        {client.sourceDetails}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-3 pt-3 border-t border-gray-200">
                   <div className="flex gap-2">
                   <button
                     onClick={() => {
-                      setSearchTerm(client.name);
+                      // Pre-llenar ambos campos de búsqueda con nombre y teléfono
+                      setHistorySearchName(client.name);
+                      setHistorySearchPhone(client.phone);
                       updateCurrentView("history");
                     }}
                       className="flex-1 bg-blue-50 text-blue-600 px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
@@ -1703,6 +2754,65 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                 %
               </h3>
               <p className="text-gray-600">Ocupación Hoy</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Estadísticas de Estados */}
+      <div className="grid md:grid-cols-4 gap-6">
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+              <CheckCircle className="w-6 h-6 text-green-600" />
+            </div>
+            <div>
+              <h3 className="text-2xl font-bold text-gray-800">
+                {stats.completedBookings}
+              </h3>
+              <p className="text-gray-600">Completados</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+              <Calendar className="w-6 h-6 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="text-2xl font-bold text-gray-800">
+                {stats.confirmedBookings}
+              </h3>
+              <p className="text-gray-600">Confirmados</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+              <XIcon className="w-6 h-6 text-red-600" />
+            </div>
+            <div>
+              <h3 className="text-2xl font-bold text-gray-800">
+                {stats.cancelledBookings}
+              </h3>
+              <p className="text-gray-600">Cancelados</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+              <AlertCircle className="w-6 h-6 text-orange-600" />
+            </div>
+            <div>
+              <h3 className="text-2xl font-bold text-gray-800">
+                {stats.noShowBookings}
+              </h3>
+              <p className="text-gray-600">No se Presentó</p>
             </div>
           </div>
         </div>
@@ -2114,7 +3224,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                 Agendar Nueva Turno
               </h3>
               <button
-                onClick={() => setShowManualBooking(false)}
+                onClick={handleCloseManualBooking}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <svg
@@ -2134,74 +3244,73 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
             </div>
 
             <form onSubmit={handleManualBooking} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nombre del Cliente
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ingresa el nombre completo"
-                  value={manualBookingForm.name}
-                  onChange={(e) =>
-                    setManualBookingForm({
-                      ...manualBookingForm,
-                      name: e.target.value,
-                    })
-                  }
-                  disabled={isCreatingBooking}
-                  className={`w-full px-4 py-3 border rounded-lg transition-colors ${
-                    isCreatingBooking
-                      ? "border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
-                      : "border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  }`}
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Número de Teléfono
-                </label>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center">
-                    <span className="bg-gray-100 text-gray-600 px-3 py-3 border border-r-0 border-gray-300 rounded-l-lg">
-                      0
-                    </span>
-                <input
-                      type="text"
-                      placeholder="11"
-                      value={manualBookingForm.areaCode}
-                  onChange={(e) =>
-                    setManualBookingForm({
-                      ...manualBookingForm,
-                          areaCode: e.target.value,
-                    })
-                  }
-                  disabled={isCreatingBooking}
-                      className={`w-24 px-3 py-3 border rounded-r-lg transition-colors ${
-                        isCreatingBooking
-                          ? "border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
-                          : "border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      }`}
-                  required
-                />
+              {/* Mostrar cliente seleccionado */}
+              {manualBookingForm.selectedClientId ? (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium text-gray-800">{manualBookingForm.name}</div>
+                      <div className="text-sm text-gray-600">
+                        {clients.find(c => c.id === manualBookingForm.selectedClientId)?.phone}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setManualBookingForm({
+                          ...manualBookingForm,
+                          selectedClientId: null,
+                          name: "",
+                        });
+                        setClientSearchQuery("");
+                        setShowNewClientFields(false);
+                        setShowClientSearchResults(false);
+                      }}
+                      className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                    >
+                      Cambiar
+                    </button>
                   </div>
-                  <div className="flex items-center">
-                    <span className="bg-gray-100 text-gray-600 px-3 py-3 border border-r-0 border-gray-300 rounded-l-lg">
-                      15
-                    </span>
+                </div>
+              ) : showNewClientFields ? (
+                /* Campos para nuevo cliente */
+                <>
+                  <div className="flex items-center justify-between mb-2">
+                  
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowNewClientFields(false);
+                        setClientSearchQuery("");
+                        setManualBookingForm({
+                          ...manualBookingForm,
+                          name: "",
+                          areaCode: "",
+                          phoneNumber: "",
+                        });
+                      }}
+                      className="flex gap-2 items-center text-sm text-blue-600 hover:text-blue-700"
+                    >
+                      <Search className="w-4 h-4" />
+                      Buscar cliente existente
+                    </button>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Nombre del Cliente *
+                    </label>
                     <input
                       type="text"
-                      placeholder="1234-5678"
-                      value={manualBookingForm.phoneNumber}
+                      placeholder="Ingresa el nombre completo"
+                      value={manualBookingForm.name}
                       onChange={(e) =>
                         setManualBookingForm({
                           ...manualBookingForm,
-                          phoneNumber: e.target.value,
+                          name: e.target.value,
                         })
                       }
                       disabled={isCreatingBooking}
-                      className={`flex-1 px-3 py-3 border rounded-r-lg transition-colors ${
+                      className={`w-full px-4 py-3 border rounded-lg transition-colors ${
                         isCreatingBooking
                           ? "border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
                           : "border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -2209,8 +3318,134 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                       required
                     />
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Número de Teléfono *
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center">
+                        <span className="bg-gray-100 text-gray-600 px-3 py-3 border border-r-0 border-gray-300 rounded-l-lg">
+                          0
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="11"
+                          value={manualBookingForm.areaCode}
+                          onChange={(e) =>
+                            setManualBookingForm({
+                              ...manualBookingForm,
+                              areaCode: e.target.value,
+                            })
+                          }
+                          disabled={isCreatingBooking}
+                          className={`w-24 px-3 py-3 border rounded-r-lg transition-colors ${
+                            isCreatingBooking
+                              ? "border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
+                              : "border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          }`}
+                          required
+                        />
+                      </div>
+                      <div className="flex items-center">
+                        <span className="bg-gray-100 text-gray-600 px-3 py-3 border border-r-0 border-gray-300 rounded-l-lg">
+                          15
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="1234-5678"
+                          value={manualBookingForm.phoneNumber}
+                          onChange={(e) =>
+                            setManualBookingForm({
+                              ...manualBookingForm,
+                              phoneNumber: e.target.value,
+                            })
+                          }
+                          disabled={isCreatingBooking}
+                          className={`flex-1 px-3 py-3 border rounded-r-lg transition-colors ${
+                            isCreatingBooking
+                              ? "border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
+                              : "border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          }`}
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* Búsqueda de Cliente */
+                <div className="relative">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Buscar Cliente
+                  </label>
+                  <div className="relative">
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Buscar por nombre o teléfono..."
+                      value={clientSearchQuery}
+                      onChange={(e) => handleClientSearchChange(e.target.value)}
+                      disabled={isCreatingBooking}
+                      className={`w-full pl-10 pr-4 py-3 border rounded-lg transition-colors ${
+                        isCreatingBooking
+                          ? "border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
+                          : "border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      }`}
+                    />
+                  </div>
+
+                  {/* Resultados de búsqueda */}
+                  {showClientSearchResults && clientSearchQuery.trim() && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {getFilteredClientsForBooking().length > 0 ? (
+                        getFilteredClientsForBooking().map((client) => (
+                          <button
+                            key={client.id}
+                            type="button"
+                            onClick={() => handleSelectClient(client)}
+                            className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
+                          >
+                            <div className="font-medium text-gray-800">{client.name}</div>
+                            <div className="text-sm text-gray-600">{client.phone}</div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-4 py-3">
+                          <div className="text-sm text-gray-600 mb-2">No se encontraron clientes</div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowNewClientFields(true);
+                              setShowClientSearchResults(false);
+                            }}
+                            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                          >
+                            + Nuevo Cliente
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Botón para nuevo cliente cuando no hay búsqueda activa */}
+                  {!clientSearchQuery.trim() && (
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowNewClientFields(true);
+                          setShowClientSearchResults(false);
+                        }}
+                        className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                      >
+                        <UserPlus className="w-4 h-4" />
+                        Nuevo Cliente
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -2256,7 +3491,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setShowManualBooking(false)}
+                  onClick={handleCloseManualBooking}
                   disabled={isCreatingBooking}
                   className={`flex-1 py-3 px-4 rounded-lg transition-colors font-medium ${
                     isCreatingBooking
@@ -2336,7 +3571,123 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
         client={editingClientIndex !== null ? getFilteredClients()[editingClientIndex] : null}
         mode={clientModalMode}
         isLoading={isCreatingClient}
+        clientRequiresAttention={clientRequiresAttention}
       />
+
+      {/* Modal de Carga Masiva */}
+      {showBulkImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Carga Masiva de Clientes</h3>
+              <button
+                onClick={handleCloseBulkImport}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Seleccionar archivo (CSV o Excel)
+                </label>
+                <input
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={handleFileSelect}
+                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  El archivo debe tener las columnas: "Nombre" y "Teléfono"
+                </p>
+              </div>
+
+              {bulkImportFile && (
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-700">
+                    <strong>Archivo seleccionado:</strong> {bulkImportFile.name}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Tamaño: {(bulkImportFile.size / 1024).toFixed(2)} KB
+                  </p>
+                </div>
+              )}
+
+              {bulkImportPreview && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <h4 className="font-medium text-yellow-800 mb-2">Preview de Importación</h4>
+                  <div className="text-sm text-yellow-700 space-y-1">
+                    <p>Total de filas: {bulkImportPreview.totalRows}</p>
+                    <p>Válidos: {bulkImportPreview.valid}</p>
+                    <p>Inválidos: {bulkImportPreview.invalid}</p>
+                    <p>Duplicados: {bulkImportPreview.duplicates}</p>
+                  </div>
+                  
+                  {bulkImportPreview.invalidClients && bulkImportPreview.invalidClients.length > 0 && (
+                    <div className="mt-3">
+                      <p className="font-medium text-red-700">Clientes con errores:</p>
+                      <ul className="text-sm text-red-600 list-disc list-inside">
+                        {bulkImportPreview.invalidClients.slice(0, 5).map((client: any, index: number) => (
+                          <li key={index}>
+                            {client.name} - {client.phone} ({client.error})
+                          </li>
+                        ))}
+                        {bulkImportPreview.invalidClients.length > 5 && (
+                          <li>... y {bulkImportPreview.invalidClients.length - 5} más</li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+
+                  {bulkImportPreview.duplicateClients && bulkImportPreview.duplicateClients.length > 0 && (
+                    <div className="mt-3">
+                      <p className="font-medium text-orange-700">Clientes duplicados:</p>
+                      <ul className="text-sm text-orange-600 list-disc list-inside">
+                        {bulkImportPreview.duplicateClients.slice(0, 5).map((client: any, index: number) => (
+                          <li key={index}>
+                            <strong>{client.name}</strong> - {client.message}
+                          </li>
+                        ))}
+                        {bulkImportPreview.duplicateClients.length > 5 && (
+                          <li>... y {bulkImportPreview.duplicateClients.length - 5} más</li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={handleCloseBulkImport}
+                  className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleBulkImport}
+                  disabled={!bulkImportFile || isProcessingBulkImport}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                >
+                  {isProcessingBulkImport ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Procesando...
+                    </>
+                  ) : (
+                    <>
+                      <Users className="w-4 h-4" />
+                      Importar Clientes
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

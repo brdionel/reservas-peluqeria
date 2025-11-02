@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../server.js';
 import { validateRequest } from '../middleware/validation.js';
 import { createCalendarEvent, deleteCalendarEvent, updateCalendarEvent } from '../services/googleCalendar.js';
+import { whatsappService } from '../services/whatsappService.js';
 import { bookingLimiter } from '../middleware/rateLimit.js';
 import { validatePhoneFormat } from '../utils/phoneValidation.js';
 
@@ -15,7 +16,9 @@ const createBookingSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido (YYYY-MM-DD)'),
   time: z.string().regex(/^\d{2}:\d{2}$/, 'Formato de hora inválido (HH:MM)'),
   service: z.string().optional(),
-  notes: z.string().optional()
+  notes: z.string().optional(),
+  source: z.enum(['booking_form', 'admin_panel']).optional().default('booking_form'),
+  sourceDetails: z.string().optional()
 }).refine((data) => {
   const phoneValidation = validatePhoneFormat(data.phone);
   return phoneValidation.isValid;
@@ -112,13 +115,14 @@ router.get('/:id', async (req, res) => {
 // POST /api/bookings - Crear nueva reserva
 router.post('/', bookingLimiter, validateRequest(createBookingSchema), async (req, res) => {
   try {
-    const { name, phone, date, time, service, notes } = req.body;
+    const { name, phone, date, time, service, notes, source = 'booking_form', sourceDetails } = req.body;
 
-    // Verificar si el slot ya está ocupado
+    // Verificar si el slot ya está ocupado (excluyendo cancelados)
     const existingBooking = await prisma.booking.findFirst({
       where: {
         date,
-        time
+        time,
+        status: { not: 'CANCELLED' } // Los turnos cancelados no bloquean el slot
       }
     });
 
@@ -128,6 +132,18 @@ router.post('/', bookingLimiter, validateRequest(createBookingSchema), async (re
         error: 'Este horario ya está ocupado'
       });
     }
+
+    // Verificar si hay un turno cancelado en este slot que podamos reactivar
+    const cancelledBooking = await prisma.booking.findFirst({
+      where: {
+        date,
+        time,
+        status: 'CANCELLED'
+      },
+      include: {
+        client: true
+      }
+    });
 
     // Verificar que la fecha no sea pasada
     const bookingDate = new Date(date + 'T00:00:00');
@@ -141,19 +157,49 @@ router.post('/', bookingLimiter, validateRequest(createBookingSchema), async (re
       });
     }
 
-    // Buscar o crear cliente
-    let client = await prisma.client.findUnique({
-      where: { phone }
+    // Buscar cliente activo (no eliminado)
+    let client = await prisma.client.findFirst({
+      where: { 
+        phone,
+        isDeleted: false
+      }
     });
 
     if (!client) {
-      client = await prisma.client.create({
-        data: {
-          name,
+      // Buscar si existe un cliente eliminado con el mismo teléfono
+      const deletedClient = await prisma.client.findFirst({
+        where: { 
           phone,
-          isRegular: false
+          isDeleted: true
         }
       });
+
+      if (deletedClient) {
+        // Reactivar cliente eliminado
+        client = await prisma.client.update({
+          where: { id: deletedClient.id },
+          data: {
+            name,
+            isDeleted: false,
+            deletedAt: null,
+            source: source,
+            sourceDetails: sourceDetails || (source === 'admin_panel' ? 'Cliente reactivado desde panel de administración' : 'Cliente reactivado desde formulario de reserva'),
+            isVerified: source === 'admin_panel' ? true : deletedClient.isVerified // Si viene del admin, verificar; si no, mantener el estado anterior
+          }
+        });
+      } else {
+        // Crear nuevo cliente
+        client = await prisma.client.create({
+          data: {
+            name,
+            phone,
+            isRegular: false,
+            source: source,
+            sourceDetails: sourceDetails || (source === 'admin_panel' ? 'Cliente creado desde panel de administración' : 'Cliente creado desde formulario de reserva'),
+            isVerified: source === 'admin_panel' // Los clientes creados desde el admin están verificados automáticamente
+          }
+        });
+      }
     } else {
       // Actualizar nombre si es diferente
       if (client.name !== name) {
@@ -164,27 +210,58 @@ router.post('/', bookingLimiter, validateRequest(createBookingSchema), async (re
       }
     }
 
-    // Crear la reserva
-    const booking = await prisma.booking.create({
-      data: {
-        clientId: client.id,
-        date,
-        time,
-        service,
-        notes,
-        status: 'CONFIRMED'
-      },
-      include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            isRegular: true
+    // Si hay un turno cancelado en este slot, reactivarlo en lugar de crear uno nuevo
+    let booking;
+    if (cancelledBooking) {
+      console.log('🔄 Reactivando turno cancelado existente');
+      // Actualizar el turno cancelado con los nuevos datos
+      booking = await prisma.booking.update({
+        where: { id: cancelledBooking.id },
+        data: {
+          clientId: client.id,
+          service,
+          notes,
+          status: 'CONFIRMED',
+          source: source,
+          sourceDetails: sourceDetails,
+          googleEventIds: null // Limpiar eventos antiguos, se crearán nuevos
+        },
+        include: {
+          client: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              isRegular: true
+            }
           }
         }
-      }
-    });
+      });
+    } else {
+      // Crear la reserva nueva
+      booking = await prisma.booking.create({
+        data: {
+          clientId: client.id,
+          date,
+          time,
+          service,
+          notes,
+          status: 'CONFIRMED',
+          source: source,
+          sourceDetails: sourceDetails
+        },
+        include: {
+          client: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              isRegular: true
+            }
+          }
+        }
+      });
+    }
 
     // Obtener calendarios activos para crear eventos
     const activeCalendars = await prisma.googleCalendar.findMany({
@@ -223,6 +300,32 @@ router.post('/', bookingLimiter, validateRequest(createBookingSchema), async (re
       console.warn('⚠️ Reserva creada pero falló la sincronización con Google Calendar:', calendarResult.error);
     }
 
+    // Enviar WhatsApp de confirmación
+    let whatsappResult = { success: false, error: 'WhatsApp no configurado' };
+    if (whatsappService.isConfigured()) {
+      try {
+        console.log('📱 Enviando WhatsApp de confirmación a:', client.phone);
+        whatsappResult = await whatsappService.sendBookingConfirmation({
+          client,
+          date,
+          time,
+          service,
+          notes
+        });
+        
+        if (whatsappResult.success) {
+          console.log('✅ WhatsApp enviado exitosamente:', whatsappResult.messageId);
+        } else {
+          console.warn('⚠️ Error enviando WhatsApp:', whatsappResult.error);
+        }
+      } catch (error) {
+        console.error('❌ Error enviando WhatsApp:', error);
+        whatsappResult = { success: false, error: error.message };
+      }
+    } else {
+      console.log('ℹ️ WhatsApp no configurado, saltando envío');
+    }
+
     res.status(201).json({
       success: true,
       data: {
@@ -232,9 +335,18 @@ router.post('/', bookingLimiter, validateRequest(createBookingSchema), async (re
           primaryEventId: calendarResult.primaryEventId,
           primaryEventUrl: calendarResult.primaryEventUrl,
           results: calendarResult.results
-        } : null
+        } : null,
+        whatsapp: whatsappResult.success ? {
+          messageId: whatsappResult.messageId,
+          sent: true
+        } : {
+          sent: false,
+          error: whatsappResult.error
+        }
       },
-      message: 'Reserva creada exitosamente' + (calendarResult.success ? ' y agregada al calendario' : '')
+      message: 'Reserva creada exitosamente' + 
+        (calendarResult.success ? ' y agregada al calendario' : '') +
+        (whatsappResult.success ? ' y WhatsApp enviado' : '')
     });
   } catch (error) {
     console.error('Error creando reserva:', error);
@@ -275,7 +387,8 @@ router.put('/:id', validateRequest(updateBookingSchema), async (req, res) => {
         where: {
           date: newDate,
           time: newTime,
-          id: { not: id }
+          id: { not: id },
+          status: { not: 'CANCELLED' } // Los turnos cancelados no bloquean el slot
         }
       });
 
@@ -287,6 +400,9 @@ router.put('/:id', validateRequest(updateBookingSchema), async (req, res) => {
       }
     }
 
+    // Verificar si se está cancelando el turno
+    const isCancelling = updateData.status === 'CANCELLED' && existingBooking.status !== 'CANCELLED';
+    
     const updatedBooking = await prisma.booking.update({
       where: { id },
       data: updateData,
@@ -302,9 +418,38 @@ router.put('/:id', validateRequest(updateBookingSchema), async (req, res) => {
       }
     });
 
-    // Actualizar evento en Google Calendar si existe
+    // Si se está cancelando, eliminar eventos de Google Calendar
     let calendarResult = { success: true };
-    if (existingBooking.googleEventIds && (updateData.date || updateData.time || updateData.service || updateData.notes)) {
+    if (isCancelling && existingBooking.googleEventIds) {
+      try {
+        const eventIds = JSON.parse(existingBooking.googleEventIds);
+        
+        // Obtener calendarios activos para saber en qué calendarios eliminar
+        const activeCalendars = await prisma.googleCalendar.findMany({
+          where: { isActive: true },
+          select: { calendarId: true }
+        });
+        const calendarIds = activeCalendars.map(cal => cal.calendarId);
+        
+        calendarResult = await deleteCalendarEvent(eventIds, calendarIds);
+        
+        if (calendarResult.success) {
+          console.log('✅ Evento eliminado de Google Calendar:', eventIds);
+          // Limpiar los IDs de eventos del booking
+          await prisma.booking.update({
+            where: { id },
+            data: { googleEventIds: null }
+          });
+        } else {
+          console.warn('⚠️ Error al eliminar evento de Google Calendar:', calendarResult.error);
+        }
+      } catch (error) {
+        console.error('❌ Error procesando eliminación de evento:', error);
+        calendarResult = { success: false, error: error.message };
+      }
+    }
+    // Actualizar evento en Google Calendar si existe y no se está cancelando
+    else if (existingBooking.googleEventIds && (updateData.date || updateData.time || updateData.service || updateData.notes) && !isCancelling) {
       const eventIds = JSON.parse(existingBooking.googleEventIds);
       
       // Obtener calendarios activos
@@ -337,10 +482,17 @@ router.put('/:id', validateRequest(updateBookingSchema), async (req, res) => {
       }
     }
 
+    let message = 'Reserva actualizada exitosamente';
+    if (isCancelling && calendarResult.success) {
+      message += ' y evento eliminado del calendario';
+    } else if (calendarResult.success && existingBooking.googleEventIds && !isCancelling) {
+      message += ' y sincronizada con el calendario';
+    }
+
     res.json({
       success: true,
       data: updatedBooking,
-      message: 'Reserva actualizada exitosamente' + (calendarResult.success && existingBooking.googleEventIds ? ' y sincronizada con el calendario' : '')
+      message: message
     });
   } catch (error) {
     console.error('Error actualizando reserva:', error);
@@ -409,6 +561,60 @@ router.delete('/:id', async (req, res) => {
       error: 'Error al eliminar la reserva',
       details: error?.message,
       code: error?.code
+    });
+  }
+});
+
+// POST /api/bookings/send-reminder/:id - Enviar recordatorio por WhatsApp
+router.post('/send-reminder/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Obtener la reserva
+    const booking = await prisma.booking.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        client: true
+      }
+    });
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        error: 'Reserva no encontrada'
+      });
+    }
+
+    // Verificar si WhatsApp está configurado
+    if (!whatsappService.isConfigured()) {
+      return res.status(400).json({
+        success: false,
+        error: 'WhatsApp no está configurado'
+      });
+    }
+
+    // Enviar recordatorio
+    const whatsappResult = await whatsappService.sendBookingReminder(booking);
+
+    if (whatsappResult.success) {
+      res.json({
+        success: true,
+        message: 'Recordatorio enviado exitosamente',
+        data: {
+          messageId: whatsappResult.messageId
+        }
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: whatsappResult.error
+      });
+    }
+  } catch (error) {
+    console.error('Error enviando recordatorio:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error al enviar el recordatorio'
     });
   }
 });

@@ -1,9 +1,20 @@
+export type BookingStatus = 
+  | 'confirmed'    // Confirmada por el cliente
+  | 'in_progress'   // Cliente está en el salón
+  | 'completed'     // Servicio terminado
+  | 'cancelled'     // Cancelada
+  | 'no_show';     // Cliente no se presentó
+
 export interface BookingData {
   id?: number;
   name: string;
   phone: string;
   date: string; // YYYY-MM-DD format
   time: string; // HH:MM format
+  status: BookingStatus; // Estado de la reserva
+  whatsappStatus?: 'sent' | 'pending' | 'failed' | 'not_sent';
+  source?: 'booking_form' | 'admin_panel'; // Origen del turno
+  sourceDetails?: string; // Detalles del origen
   client?: {
     id: number;
     name: string;

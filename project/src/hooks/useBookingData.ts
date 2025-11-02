@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BookingData, SalonConfig } from "../types/booking";
+import { BookingData, SalonConfig, BookingStatus } from "../types/booking";
 import { configService, bookingService } from '../services/api';
 
 interface TimeSlot {
@@ -57,7 +57,8 @@ export const useBookingData = () => {
         // Cargar reservas del backend
         const bookingsResponse = await bookingService.getBookings();
         if (bookingsResponse.success && bookingsResponse.data) {
-          setBookings(bookingsResponse.data as BookingData[]);
+          const migratedBookings = migrateExistingBookings(bookingsResponse.data as BookingData[]);
+          setBookings(migratedBookings);
         } else {
           // Si falla, inicializar con array vacío
           setBookings([]);
@@ -175,6 +176,24 @@ export const useBookingData = () => {
 
   // Obtener slots disponibles para una fecha específica
   const getAvailableSlots = (date: Date): TimeSlot[] => {
+    const isActiveBooking = (b?: BookingData): boolean => {
+      if (!b) return false;
+      const s = (b.status as unknown as string | undefined)?.toString().toLowerCase();
+      // Solo bloquean el slot los estados activos
+      const isActive = s === 'confirmed' || s === 'in_progress' || !s; // fallback: sin status => activo
+      
+      // Debug: mostrar información del booking
+      if (b.date === date.toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" })) {
+        console.log(`Booking ${b.time}:`, {
+          status: b.status,
+          normalizedStatus: s,
+          isActive,
+          booking: b
+        });
+      }
+      
+      return isActive;
+    };
     const dateString = date.toLocaleDateString("en-CA", {
       timeZone: "America/Argentina/Buenos_Aires"
     });
@@ -191,11 +210,11 @@ export const useBookingData = () => {
     if (date < today) {
       return availableTimeSlots.map((time) => {
         const booking = bookings.find(
-          (b) => b.date === dateString && b.time === time
+          (b) => b.date === dateString && b.time === time && isActiveBooking(b)
         );
         return {
           time,
-          available: false,
+          available: !booking,
           clientName: booking?.client?.name || booking?.name,
           clientPhone: booking?.client?.phone || booking?.phone,
         };
@@ -204,7 +223,7 @@ export const useBookingData = () => {
 
     return availableTimeSlots.map((time) => {
       const booking = bookings.find(
-        (b) => b.date === dateString && b.time === time
+        (b) => b.date === dateString && b.time === time && isActiveBooking(b)
       );
       return {
         time,
@@ -248,9 +267,15 @@ export const useBookingData = () => {
         return false; // No se pueden hacer reservas más allá del límite
       }
 
+      // Asegurar que la reserva tenga estado 'confirmed' por defecto
+      const bookingWithStatus = {
+        ...bookingData,
+        status: 'confirmed' as BookingStatus
+      };
+
       // Hacer llamada al backend
-      console.log('Enviando reserva al backend:', bookingData);
-      const response = await bookingService.createBooking(bookingData);
+      console.log('Enviando reserva al backend:', bookingWithStatus);
+      const response = await bookingService.createBooking(bookingWithStatus);
       
       if (response.success && response.data) {
         console.log('Reserva creada exitosamente en el backend');
@@ -281,9 +306,34 @@ export const useBookingData = () => {
     return true;
   };
 
+  // Actualizar estado de una reserva
+  const updateBookingStatus = async (bookingId: number, newStatus: string): Promise<boolean> => {
+    try {
+      const response = await bookingService.updateBooking(bookingId, { status: newStatus });
+      
+      if (response.success) {
+        // Convertir el estado del backend a formato frontend
+        const frontendStatus = newStatus.toLowerCase() as BookingStatus;
+        setBookings((prev) => 
+          prev.map((booking) => 
+            booking.id === bookingId 
+              ? { ...booking, status: frontendStatus }
+              : booking
+          )
+        );
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error updating booking status:', error);
+      return false;
+    }
+  };
+
   // Obtener todas las reservas
   const getAllBookings = (): BookingData[] => {
-    return [...bookings].sort((a, b) => {
+    const migratedBookings = migrateExistingBookings(bookings);
+    return [...migratedBookings].sort((a, b) => {
       const dateCompare = b.date.localeCompare(a.date);
       if (dateCompare === 0) {
         return b.time.localeCompare(a.time);
@@ -294,7 +344,8 @@ export const useBookingData = () => {
 
   // Obtener reservas por fecha
   const getBookingsByDate = (date: string): BookingData[] => {
-    return bookings.filter((b) => b.date === date);
+    const migratedBookings = migrateExistingBookings(bookings);
+    return migratedBookings.filter((b) => b.date === date);
   };
 
   // Verificar si una fecha tiene disponibilidad
@@ -309,6 +360,14 @@ export const useBookingData = () => {
     setSalonConfig(config);
   };
 
+  // Función para migrar bookings existentes que no tienen status
+  const migrateExistingBookings = (bookings: BookingData[]): BookingData[] => {
+    return bookings.map(booking => ({
+      ...booking,
+      status: booking.status || 'confirmed' as BookingStatus
+    }));
+  };
+
   return {
     bookings,
     setBookings,
@@ -317,6 +376,7 @@ export const useBookingData = () => {
     getAvailableSlots,
     createBooking,
     cancelBooking,
+    updateBookingStatus,
     getAllBookings,
     getBookingsByDate,
     hasAvailability,
