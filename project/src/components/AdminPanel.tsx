@@ -316,15 +316,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
       return false;
     }
 
-    const client = clients.find(c => c.phone === booking.phone);
+    // Obtener el teléfono del booking (puede venir de booking.phone o booking.client?.phone)
+    const bookingPhone = booking.phone || booking.client?.phone;
+    if (!bookingPhone) {
+      return false;
+    }
+
+    const client = clients.find(c => {
+      // Comparar teléfonos normalizados (sin espacios, sin +, etc.)
+      const clientPhoneClean = c.phone.replace(/\D/g, '');
+      const bookingPhoneClean = bookingPhone.replace(/\D/g, '');
+      return clientPhoneClean === bookingPhoneClean;
+    });
     
     // Si no encontramos el cliente en la base de datos, es un cliente completamente nuevo
     if (!client) {
       return true;
     }
 
-    // Si encontramos el cliente pero no tiene turnos completados, también requiere atención
-    return isNewClient(client);
+    // Si encontramos el cliente, verificar si requiere atención (nuevo Y no verificado)
+    return clientRequiresAttention(client);
   };
 
   // Función para determinar el estado de WhatsApp de un turno específico
@@ -1798,8 +1809,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
               ? "Cliente actualizado y verificado exitosamente"
               : "Cliente actualizado exitosamente";
             showNotification("success", message);
-            // Recargar clientes del backend
+            // Recargar clientes del backend para actualizar el estado
             await loadClients();
+            // Forzar re-render del componente esperando un tick
+            await new Promise(resolve => setTimeout(resolve, 100));
             handleCloseClientModal(); // Cerrar modal solo después del éxito
           } else {
             console.log("❌ Error del servidor:", response.error);
