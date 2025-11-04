@@ -237,9 +237,16 @@ export const useBookingData = () => {
   // Crear nueva reserva
   const createBooking = async (bookingData: BookingData): Promise<boolean> => {
     try {
-      // Verificar si el slot ya está ocupado
+      // Verificar si el slot ya está ocupado (solo bookings activos, excluyendo cancelados)
       const existingBooking = bookings.find(
-        (b) => b.date === bookingData.date && b.time === bookingData.time
+        (b) => {
+          if (b.date === bookingData.date && b.time === bookingData.time) {
+            const status = (b.status as unknown as string | undefined)?.toString().toLowerCase();
+            // Solo considerar ocupados los bookings que NO están cancelados
+            return status !== 'cancelled';
+          }
+          return false;
+        }
       );
 
       if (existingBooking) {

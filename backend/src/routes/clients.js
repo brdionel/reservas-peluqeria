@@ -5,65 +5,151 @@ import { validateRequest } from '../middleware/validation.js';
 import { validatePhoneFormat } from '../utils/phoneValidation.js';
 
 // Función para normalizar números de teléfono para comparación
+// Maneja múltiples formatos: +549..., 549..., 9..., 15..., 0..., 236..., 23615...
 const normalizePhoneForComparison = (phone) => {
   if (!phone) return '';
   
   // Remover todos los caracteres no numéricos
-  const numbersOnly = phone.replace(/\D/g, '');
+  let numbersOnly = phone.replace(/\D/g, '');
   
-  // Si empieza con 54, mantenerlo
-  if (numbersOnly.startsWith('54')) {
-    return numbersOnly;
+  if (!numbersOnly || numbersOnly.length < 8) {
+    return '';
   }
   
-  // Si empieza con 9, agregar 54
-  if (numbersOnly.startsWith('9')) {
-    return '54' + numbersOnly;
+  let normalizedPhone = '';
+  
+  // Si ya empieza con 549 (formato estándar)
+  if (numbersOnly.startsWith('549')) {
+    normalizedPhone = numbersOnly;
+  }
+  // Si empieza con 54 (sin el 9)
+  else if (numbersOnly.startsWith('54')) {
+    // Agregar el 9 después de 54
+    normalizedPhone = '549' + numbersOnly.substring(2);
+  }
+  // Si empieza con 9 (solo el 9 móvil)
+  else if (numbersOnly.startsWith('9')) {
+    normalizedPhone = '54' + numbersOnly;
+  }
+  // Si empieza con 15 (15 seguido del código de área, ej: 152361212121)
+  else if (numbersOnly.startsWith('15')) {
+    // El 15 es parte del prefijo móvil, eliminarlo y agregar 549
+    normalizedPhone = '549' + numbersOnly.substring(2);
+  }
+  // Si empieza con 0 (0 seguido del código de área, ej: 0236151212121)
+  else if (numbersOnly.startsWith('0')) {
+    // Remover el 0 inicial
+    const withoutZero = numbersOnly.substring(1);
+    // Si después del 0 empieza con 15, remover también el 15
+    if (withoutZero.startsWith('15')) {
+      normalizedPhone = '549' + withoutZero.substring(2);
+    } else {
+      // Solo remover el 0 y agregar 549
+      normalizedPhone = '549' + withoutZero;
+    }
+  }
+  // Para otros casos (código de área directamente, ej: 2361212121 o 236151212121)
+  else {
+    // Verificar si el número tiene el prefijo 15 después del código de área
+    // Códigos de área pueden ser de 2 dígitos (11) o 3 dígitos (236, 220)
+    // Intentar primero con 3 dígitos
+    const possibleArea3 = numbersOnly.substring(0, 3);
+    const rest3 = numbersOnly.substring(3);
+    
+    // Si después del posible código de área de 3 dígitos empieza con 15, removerlo
+    if (rest3.startsWith('15')) {
+      normalizedPhone = '549' + possibleArea3 + rest3.substring(2);
+    } 
+    // Intentar con 2 dígitos
+    else {
+      const possibleArea2 = numbersOnly.substring(0, 2);
+      const rest2 = numbersOnly.substring(2);
+      
+      // Si después del posible código de área de 2 dígitos empieza con 15, removerlo
+      if (rest2.startsWith('15')) {
+        normalizedPhone = '549' + possibleArea2 + rest2.substring(2);
+      } else {
+        // Sin prefijo 15, agregar 549 directamente
+        normalizedPhone = '549' + numbersOnly;
+      }
+    }
   }
   
-  // Si empieza con 15, reemplazar con 9 y agregar 54
-  if (numbersOnly.startsWith('15')) {
-    return '549' + numbersOnly.substring(2);
-  }
-  
-  // Si empieza con 0, remover el 0 y agregar 549
-  if (numbersOnly.startsWith('0')) {
-    return '549' + numbersOnly.substring(1);
-  }
-  
-  // Para otros casos, agregar 549
-  return '549' + numbersOnly;
+  return normalizedPhone;
 };
 
 // Función para normalizar números de teléfono al formato estándar (+549...)
+// Maneja múltiples formatos: +549..., 549..., 9..., 15..., 0..., 236..., 23615...
 const normalizePhoneToStandard = (phone) => {
   if (!phone) return '';
   
   // Remover todos los caracteres no numéricos
-  const numbersOnly = phone.replace(/\D/g, '');
+  let numbersOnly = phone.replace(/\D/g, '');
   
-  // Si empieza con 54, agregar +
-  if (numbersOnly.startsWith('54')) {
-    return '+' + numbersOnly;
+  if (!numbersOnly || numbersOnly.length < 8) {
+    return '';
   }
   
-  // Si empieza con 9, agregar +54
-  if (numbersOnly.startsWith('9')) {
-    return '+54' + numbersOnly;
+  let normalizedPhone = '';
+  
+  // Si ya empieza con 549 (formato estándar)
+  if (numbersOnly.startsWith('549')) {
+    normalizedPhone = numbersOnly;
+  }
+  // Si empieza con 54 (sin el 9)
+  else if (numbersOnly.startsWith('54')) {
+    // Agregar el 9 después de 54
+    normalizedPhone = '549' + numbersOnly.substring(2);
+  }
+  // Si empieza con 9 (solo el 9 móvil)
+  else if (numbersOnly.startsWith('9')) {
+    normalizedPhone = '54' + numbersOnly;
+  }
+  // Si empieza con 15 (15 seguido del código de área, ej: 152361212121)
+  else if (numbersOnly.startsWith('15')) {
+    // El 15 es parte del prefijo móvil, eliminarlo y agregar 549
+    normalizedPhone = '549' + numbersOnly.substring(2);
+  }
+  // Si empieza con 0 (0 seguido del código de área, ej: 0236151212121)
+  else if (numbersOnly.startsWith('0')) {
+    // Remover el 0 inicial
+    const withoutZero = numbersOnly.substring(1);
+    // Si después del 0 empieza con 15, remover también el 15
+    if (withoutZero.startsWith('15')) {
+      normalizedPhone = '549' + withoutZero.substring(2);
+    } else {
+      // Solo remover el 0 y agregar 549
+      normalizedPhone = '549' + withoutZero;
+    }
+  }
+  // Para otros casos (código de área directamente, ej: 2361212121 o 236151212121)
+  else {
+    // Verificar si el número tiene el prefijo 15 después del código de área
+    // Códigos de área pueden ser de 2 dígitos (11) o 3 dígitos (236, 220)
+    // Intentar primero con 3 dígitos
+    const possibleArea3 = numbersOnly.substring(0, 3);
+    const rest3 = numbersOnly.substring(3);
+    
+    // Si después del posible código de área de 3 dígitos empieza con 15, removerlo
+    if (rest3.startsWith('15')) {
+      normalizedPhone = '549' + possibleArea3 + rest3.substring(2);
+    } 
+    // Intentar con 2 dígitos
+    else {
+      const possibleArea2 = numbersOnly.substring(0, 2);
+      const rest2 = numbersOnly.substring(2);
+      
+      // Si después del posible código de área de 2 dígitos empieza con 15, removerlo
+      if (rest2.startsWith('15')) {
+        normalizedPhone = '549' + possibleArea2 + rest2.substring(2);
+      } else {
+        // Sin prefijo 15, agregar 549 directamente
+        normalizedPhone = '549' + numbersOnly;
+      }
+    }
   }
   
-  // Si empieza con 15, reemplazar con 9 y agregar +54
-  if (numbersOnly.startsWith('15')) {
-    return '+549' + numbersOnly.substring(2);
-  }
-  
-  // Si empieza con 0, remover el 0 y agregar +549
-  if (numbersOnly.startsWith('0')) {
-    return '+549' + numbersOnly.substring(1);
-  }
-  
-  // Para otros casos, agregar +549
-  return '+549' + numbersOnly;
+  return '+' + normalizedPhone;
 };
 import multer from 'multer';
 import csv from 'csv-parser';

@@ -33,8 +33,8 @@ function ReservaView() {
       setCompletedBooking(bookingData);
       setShowSuccessModal(true);
     } else {
-      // Mostrar error al usuario
-      alert('Error al crear la reserva. Por favor, intenta nuevamente.');
+      // Lanzar error para que BookingForm pueda manejarlo
+      throw new Error('Error al crear la reserva. Por favor, intenta nuevamente.');
     }
   };
 

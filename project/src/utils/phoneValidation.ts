@@ -201,21 +201,74 @@ export function getAllAreaCodes() {
 
 /**
  * Formatea un número normalizado para mostrar al usuario (sin +549)
- * @param normalizedPhone - Número normalizado (ej: +549112345678)
- * @returns Número formateado para mostrar (ej: 11 1234-5678)
+ * @param normalizedPhone - Número normalizado (ej: +549112345678 o +5492361212121)
+ * @returns Número formateado para mostrar (ej: +54 9 11 1234-5678 o +54 9 236 1212-121)
  */
 export function formatPhoneForDisplay(normalizedPhone: string): string {
   if (!normalizedPhone) return '';
   
-  // Remover +549 del inicio
-  const cleanPhone = normalizedPhone.replace(/^\+549/, '');
+  // Remover +549 del inicio si existe
+  let cleanPhone = normalizedPhone.replace(/^\+549/, '');
   
-  if (cleanPhone.length < 2) return normalizedPhone;
+  // Si no tiene el formato +549, intentar otros formatos
+  if (cleanPhone === normalizedPhone) {
+    // Intentar remover +54 9 o +54
+    cleanPhone = normalizedPhone.replace(/^\+54\s?9?\s?/, '').replace(/\D/g, '');
+  } else {
+    cleanPhone = cleanPhone.replace(/\D/g, '');
+  }
   
-  // Separar código de área y número
-  const areaCode = cleanPhone.slice(0, 2);
-  const number = cleanPhone.slice(2);
+  if (cleanPhone.length < 8) {
+    // Si es muy corto, mostrar como está
+    return normalizedPhone;
+  }
   
-  // Fallback: mostrar como está
-  return `${areaCode} ${number}`;
+  // Intentar detectar el código de área (2 o 3 dígitos)
+  // Primero intentar con 3 dígitos para códigos como 236, 220, etc.
+  const threeDigitAreaCode = cleanPhone.slice(0, 3);
+  const areaInfo3 = ARGENTINA_AREA_CODES[threeDigitAreaCode as keyof typeof ARGENTINA_AREA_CODES];
+  
+  if (areaInfo3) {
+    // Código de área de 3 dígitos
+    const number = cleanPhone.slice(3);
+    // Formatear el número según el formato del área
+    let formattedNumber = number;
+    if (number.length === 7) {
+      // Formato ###-####
+      formattedNumber = `${number.slice(0, 3)}-${number.slice(3)}`;
+    }
+    return `+54 9 ${threeDigitAreaCode} ${formattedNumber}`;
+  }
+  
+  // Intentar con 2 dígitos (principalmente para 11 - Buenos Aires)
+  const twoDigitAreaCode = cleanPhone.slice(0, 2);
+  const areaInfo2 = ARGENTINA_AREA_CODES[twoDigitAreaCode as keyof typeof ARGENTINA_AREA_CODES];
+  
+  if (areaInfo2) {
+    // Código de área de 2 dígitos
+    const number = cleanPhone.slice(2);
+    // Formatear el número según el formato del área
+    let formattedNumber = number;
+    if (number.length === 8) {
+      // Formato ####-####
+      formattedNumber = `${number.slice(0, 4)}-${number.slice(4)}`;
+    }
+    return `+54 9 ${twoDigitAreaCode} ${formattedNumber}`;
+  }
+  
+  // Fallback: intentar formato genérico
+  if (cleanPhone.length >= 10) {
+    // Asumir código de área de 2 dígitos si no se encuentra
+    const areaCode = cleanPhone.slice(0, 2);
+    const number = cleanPhone.slice(2);
+    if (number.length === 8) {
+      return `+54 9 ${areaCode} ${number.slice(0, 4)}-${number.slice(4)}`;
+    } else if (number.length === 7) {
+      return `+54 9 ${areaCode} ${number.slice(0, 3)}-${number.slice(3)}`;
+    }
+    return `+54 9 ${areaCode} ${number}`;
+  }
+  
+  // Último fallback
+  return normalizedPhone;
 }

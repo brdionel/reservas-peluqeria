@@ -7,7 +7,7 @@ import { validateArgentinaPhone } from "../utils/phoneValidation";
 interface BookingFormProps {
   selectedDate: Date;
   selectedTime: string;
-  onBookingSubmit: (data: BookingData) => void;
+  onBookingSubmit: (data: BookingData) => Promise<void>;
 }
 
 export const BookingForm: React.FC<BookingFormProps> = ({
@@ -75,33 +75,37 @@ export const BookingForm: React.FC<BookingFormProps> = ({
 
     setIsSubmitting(true);
 
-    // Simular loading
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      // Validar y normalizar el teléfono argentino
+      const phoneValidation = validateArgentinaPhone(formData.areaCode, formData.phoneNumber);
+      
+      if (!phoneValidation.isValid) {
+        setErrors({ phone: phoneValidation.error || 'Teléfono inválido' });
+        setIsSubmitting(false);
+        return;
+      }
+      
+      const bookingData: BookingData = {
+        name: formData.name,
+        phone: phoneValidation.normalized,
+        date: (() => {
+          const pad = (n: number) => n.toString().padStart(2, "0");
+          return `${selectedDate.getFullYear()}-${pad(
+            selectedDate.getMonth() + 1
+          )}-${pad(selectedDate.getDate())}`;
+        })(),
+        time: selectedTime,
+        status: 'confirmed' as BookingStatus,
+      };
 
-    // Validar y normalizar el teléfono argentino
-    const phoneValidation = validateArgentinaPhone(formData.areaCode, formData.phoneNumber);
-    
-    if (!phoneValidation.isValid) {
-      setErrors({ phone: phoneValidation.error || 'Teléfono inválido' });
+      // Esperar a que termine el request antes de ocultar el loader
+      await onBookingSubmit(bookingData);
+    } catch (error) {
+      console.error("Error submitting booking:", error);
+      setErrors({ submit: 'Error al crear la reserva. Por favor, intenta nuevamente.' });
+    } finally {
       setIsSubmitting(false);
-      return;
     }
-    
-    const bookingData: BookingData = {
-      name: formData.name,
-      phone: phoneValidation.normalized,
-      date: (() => {
-        const pad = (n: number) => n.toString().padStart(2, "0");
-        return `${selectedDate.getFullYear()}-${pad(
-          selectedDate.getMonth() + 1
-        )}-${pad(selectedDate.getDate())}`;
-      })(),
-      time: selectedTime,
-      status: 'confirmed' as BookingStatus,
-    };
-
-    onBookingSubmit(bookingData);
-    setIsSubmitting(false);
   };
 
   const formatDate = (date: Date) => {
@@ -235,6 +239,12 @@ export const BookingForm: React.FC<BookingFormProps> = ({
             serán utilizados únicamente para gestionar tu turno.
           </p>
         </div>
+
+        {errors.submit && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-red-800 text-sm">{errors.submit}</p>
+          </div>
+        )}
 
         <button
           type="submit"
