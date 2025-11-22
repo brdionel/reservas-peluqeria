@@ -5,6 +5,14 @@ export type BookingStatus =
   | 'cancelled'     // Cancelada
   | 'no_show';     // Cliente no se presentó
 
+export interface WhatsAppStatus {
+  success: boolean;
+  messageId?: string | null;
+  provider?: string | null;
+  sentAt?: string | null;
+  error?: string | null;
+}
+
 export interface BookingData {
   id?: number;
   name: string;
@@ -12,7 +20,7 @@ export interface BookingData {
   date: string; // YYYY-MM-DD format
   time: string; // HH:MM format
   status: BookingStatus; // Estado de la reserva
-  whatsappStatus?: 'sent' | 'pending' | 'failed' | 'not_sent';
+  whatsappStatus?: string | WhatsAppStatus; // Puede ser string JSON o objeto parseado
   source?: 'booking_form' | 'admin_panel'; // Origen del turno
   sourceDetails?: string; // Detalles del origen
   client?: {

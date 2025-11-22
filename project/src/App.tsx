@@ -19,7 +19,7 @@ function ReservaView() {
   const [selectedTime, setSelectedTime] = React.useState<string>('');
   const [completedBooking, setCompletedBooking] = React.useState<BookingData | null>(null);
   const [showSuccessModal, setShowSuccessModal] = React.useState(false);
-  const { getAvailableSlots, createBooking, isLoaded } = useBookingData();
+  const { getAvailableSlots, createBooking, isLoaded, refreshBookings } = useBookingData();
   const availableSlots = getAvailableSlots(selectedDate);
 
   const handleDateSelect = (date: Date) => {
@@ -28,14 +28,20 @@ function ReservaView() {
   };
 
   const handleBookingSubmit = async (bookingData: BookingData) => {
-    const success = await createBooking(bookingData);
-    if (success) {
-      setCompletedBooking(bookingData);
-      setShowSuccessModal(true);
-    } else {
-      // Lanzar error para que BookingForm pueda manejarlo
-      throw new Error('Error al crear la reserva. Por favor, intenta nuevamente.');
+    try {
+      const success = await createBooking(bookingData);
+      if (success) {
+        setCompletedBooking(bookingData);
+        setShowSuccessModal(true);
+      }
+    } catch (error) {
+      // Re-lanzar el error para que BookingForm pueda manejarlo con el mensaje específico
+      throw error;
     }
+  };
+
+  const handleRefreshSlots = async () => {
+    await refreshBookings();
   };
 
   const handleNewBooking = () => {
@@ -97,6 +103,7 @@ function ReservaView() {
                 selectedDate={selectedDate}
                 selectedTime={selectedTime}
                 onBookingSubmit={handleBookingSubmit}
+                onRefreshSlots={handleRefreshSlots}
               />
             ) : (
               <div className="bg-white rounded-xl shadow-lg p-6">

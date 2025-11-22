@@ -125,6 +125,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
     updateSalonConfig,
     setBookings,
     updateBookingStatus,
+    refreshBookings,
   } = useBookingData();
   const { admin, logout } = useAuth();
   const navigate = useNavigate();
@@ -341,21 +342,83 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
   // Función para determinar el estado de WhatsApp de un turno específico
   const getWhatsAppStatus = (booking: BookingData | undefined) => {
     if (!booking || !booking.whatsappStatus) {
-      return { status: 'not_synced', icon: XIcon, color: 'text-gray-500', tooltip: 'WhatsApp no enviado' };
+      // Si el turno fue creado desde el admin, mostrar "No enviado" en lugar de error
+      const isFromAdmin = booking?.source === 'admin_panel';
+      return { 
+        status: isFromAdmin ? 'not_sent' : 'not_synced', 
+        icon: XIcon, 
+        color: 'text-gray-500', 
+        tooltip: 'WhatsApp no enviado' 
+      };
     }
 
-    switch (booking.whatsappStatus) {
-      case 'sent':
-        return { status: 'synced', icon: Check, color: 'text-green-500', tooltip: 'WhatsApp enviado exitosamente' };
-      case 'pending':
-        return { status: 'not_synced', icon: Clock, color: 'text-yellow-500', tooltip: 'WhatsApp pendiente de envío' };
-      case 'failed':
-        return { status: 'error', icon: AlertCircle, color: 'text-red-500', tooltip: 'Error al enviar WhatsApp' };
-      case 'not_sent':
-        return { status: 'not_synced', icon: XIcon, color: 'text-gray-500', tooltip: 'WhatsApp no enviado' };
-      default:
-        return { status: 'not_synced', icon: XIcon, color: 'text-gray-500', tooltip: 'Estado desconocido' };
+    // Parsear whatsappStatus si viene como string JSON
+    let whatsappData: any = null;
+    try {
+      if (typeof booking.whatsappStatus === 'string') {
+        whatsappData = JSON.parse(booking.whatsappStatus);
+      } else {
+        whatsappData = booking.whatsappStatus;
+      }
+    } catch (e) {
+      // Si no es JSON válido, tratar como string simple (compatibilidad con formato antiguo)
+      const statusString = booking.whatsappStatus as string;
+      switch (statusString) {
+        case 'sent':
+          return { status: 'synced', icon: Check, color: 'text-green-500', tooltip: 'WhatsApp enviado exitosamente' };
+        case 'pending':
+          return { status: 'not_synced', icon: Clock, color: 'text-yellow-500', tooltip: 'WhatsApp pendiente de envío' };
+        case 'failed':
+          // Si es de admin, mostrar como "no enviado" en lugar de error
+          const isFromAdmin = booking?.source === 'admin_panel';
+          return { 
+            status: isFromAdmin ? 'not_sent' : 'error', 
+            icon: XIcon, 
+            color: 'text-gray-500', 
+            tooltip: isFromAdmin ? 'WhatsApp no enviado (turno creado desde admin)' : 'Error al enviar WhatsApp' 
+          };
+        case 'not_sent':
+          return { status: 'not_sent', icon: XIcon, color: 'text-gray-500', tooltip: 'WhatsApp no enviado' };
+        default:
+          return { status: 'not_synced', icon: XIcon, color: 'text-gray-500', tooltip: 'Estado desconocido' };
+      }
     }
+
+    // Si es un objeto con la estructura nueva
+    if (whatsappData && typeof whatsappData === 'object') {
+      if (whatsappData.success === true) {
+        return { 
+          status: 'synced', 
+          icon: Check, 
+          color: 'text-green-500', 
+          tooltip: `WhatsApp enviado exitosamente${whatsappData.provider ? ` (${whatsappData.provider})` : ''}${whatsappData.messageId ? ` - ID: ${whatsappData.messageId}` : ''}` 
+        };
+      } else if (whatsappData.success === false) {
+        // Si es de admin, mostrar como "no enviado" en lugar de error
+        const isFromAdmin = booking?.source === 'admin_panel';
+        const errorMessage = whatsappData.error || 'Error desconocido';
+        const isNotConfigured = errorMessage.includes('no configurado') || errorMessage.includes('no enviado');
+        
+        if (isFromAdmin || isNotConfigured) {
+          return { 
+            status: 'not_sent', 
+            icon: XIcon, 
+            color: 'text-gray-500', 
+            tooltip: 'WhatsApp no enviado' 
+          };
+        } else {
+          return { 
+            status: 'error', 
+            icon: AlertCircle, 
+            color: 'text-red-500', 
+            tooltip: `Error al enviar WhatsApp: ${errorMessage}` 
+          };
+        }
+      }
+    }
+
+    // Fallback
+    return { status: 'not_synced', icon: XIcon, color: 'text-gray-500', tooltip: 'Estado desconocido' };
   };
 
   const handleCancelBooking = (booking: {
@@ -382,7 +445,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
       return;
     }
 
+    // Establecer el estado de carga ANTES de cualquier operación asíncrona
     setIsCancelingBooking(true);
+    console.log('🔄 Iniciando cancelación, isCancelingBooking:', true);
+
+    // Pequeño delay para asegurar que React renderice el cambio de estado
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     const { date, time, name } = cancelModal.booking;
     const clientName = name || "el cliente";
@@ -417,15 +485,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
             "error",
             "Error al cancelar la reserva en el servidor"
           );
+          // No cerrar el modal si hay error, para que el usuario vea el mensaje
         }
       } else {
         showNotification("error", "No se encontró la reserva para cancelar");
+        // No cerrar el modal si hay error
       }
     } catch (error) {
       console.error("Error canceling booking:", error);
       showNotification("error", "Error al cancelar la reserva");
+      // No cerrar el modal si hay error
     } finally {
       setIsCancelingBooking(false);
+      console.log('✅ Finalizando cancelación, isCancelingBooking:', false);
     }
   };
 
@@ -504,16 +576,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
     const success = await updateBookingStatus(booking.id, backendStatus);
     if (success) {
       const statusLabels = {
-        confirmed: "confirmada",
+        confirmed: "confirmado",
         in_progress: "en progreso",
-        completed: "completada",
-        cancelled: "cancelada",
-        no_show: "marcada como no se presentó"
+        completed: "completado",
+        cancelled: "cancelado",
+        no_show: "marcado como no se presentó"
       };
       
       showNotification(
         "success",
-        `Cita de ${booking.client?.name || booking.name || 'el cliente'} ${statusLabels[newStatus]}`
+        `Turno de ${booking.client?.name || booking.name || 'el cliente'} ${statusLabels[newStatus]}`
       );
     } else {
       showNotification("error", "Error al cambiar el estado de la reserva");
@@ -525,6 +597,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+    const [isCanceling, setIsCanceling] = useState(false);
     const [dropdownUp, setDropdownUp] = useState(false);
     const menuRef = React.useRef<HTMLDivElement>(null);
     const isPast = isBookingPast(booking);
@@ -576,9 +649,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
       setShowDeleteConfirm(false);
     };
 
-    const confirmCancel = () => {
-      handleStatusChange(booking, 'cancelled');
-      setShowCancelConfirm(false);
+    const confirmCancel = async () => {
+      // Evitar múltiples envíos
+      if (isCanceling) {
+        return;
+      }
+
+      setIsCanceling(true);
+      console.log('🔄 Iniciando cancelación desde modal inline, isCanceling:', true);
+
+      try {
+        await handleStatusChange(booking, 'cancelled');
+        setShowCancelConfirm(false);
+      } catch (error) {
+        console.error('Error canceling booking:', error);
+        showNotification("error", "Error al cancelar la reserva");
+      } finally {
+        setIsCanceling(false);
+        console.log('✅ Finalizando cancelación desde modal inline, isCanceling:', false);
+      }
     };
 
     // Determinar si hay acciones disponibles
@@ -607,11 +696,47 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
               const spaceBelow = viewportHeight - rect.bottom;
               const spaceAbove = rect.top;
               
-              // Si hay menos de 200px abajo y hay más espacio arriba, abrir hacia arriba
-              if (spaceBelow < 200 && spaceAbove > 200) {
-                setDropdownUp(true);
+              // Buscar el contenedor scrollable más cercano (puede tener overflow-y-auto o overflow-y-scroll)
+              let scrollableContainer: HTMLElement | null = null;
+              let currentElement: HTMLElement | null = button.parentElement;
+              
+              // Buscar hacia arriba en el DOM hasta encontrar un contenedor con scroll
+              while (currentElement && !scrollableContainer) {
+                const style = window.getComputedStyle(currentElement);
+                const overflowY = style.overflowY;
+                if (overflowY === 'auto' || overflowY === 'scroll') {
+                  scrollableContainer = currentElement;
+                  break;
+                }
+                currentElement = currentElement.parentElement;
+              }
+              
+              // Si hay un contenedor scrollable, considerar su espacio también
+              if (scrollableContainer) {
+                const containerRect = scrollableContainer.getBoundingClientRect();
+                const containerSpaceBelow = containerRect.bottom - rect.bottom;
+                const containerSpaceAbove = rect.top - containerRect.top;
+                
+                // Estimar altura del dropdown (aproximadamente 150px)
+                const dropdownHeight = 150;
+                
+                // Si hay menos espacio abajo que la altura del dropdown y hay más espacio arriba, abrir hacia arriba
+                if (containerSpaceBelow < dropdownHeight && containerSpaceAbove > dropdownHeight) {
+                  setDropdownUp(true);
+                } else if (spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
+                  // Fallback: usar el viewport si el contenedor no es relevante
+                  setDropdownUp(true);
+                } else {
+                  setDropdownUp(false);
+                }
               } else {
-                setDropdownUp(false);
+                // Sin contenedor scrollable, usar solo el viewport
+                const dropdownHeight = 150;
+                if (spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
+                  setDropdownUp(true);
+                } else {
+                  setDropdownUp(false);
+                }
               }
               
               setIsOpen(!isOpen);
@@ -740,7 +865,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
 
         {/* Modal de confirmación para cancelar */}
         {showCancelConfirm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={(e) => {
+              // Prevenir cierre si está cargando
+              if (!isCanceling && e.target === e.currentTarget) {
+                setShowCancelConfirm(false);
+              }
+            }}
+          >
             <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
@@ -768,19 +901,43 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                 </p>
               </div>
 
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowCancelConfirm(false)}
-                  className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-                >
-                  No Cancelar
-                </button>
-                <button
-                  onClick={confirmCancel}
-                  className="flex-1 bg-orange-600 text-white py-2 px-4 rounded-lg hover:bg-orange-700 transition-colors font-medium"
-                >
-                  Sí, Cancelar
-                </button>
+              <div className="space-y-4">
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      if (!isCanceling) {
+                        setShowCancelConfirm(false);
+                      }
+                    }}
+                    disabled={isCanceling}
+                    className={`flex-1 py-2 px-4 rounded-lg transition-colors font-medium ${
+                      isCanceling
+                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    No Cancelar
+                  </button>
+                  <button
+                    onClick={confirmCancel}
+                    disabled={isCanceling}
+                    className={`flex-1 py-2 px-4 rounded-lg transition-colors font-medium flex items-center justify-center gap-2 ${
+                      isCanceling
+                        ? "bg-gray-400 text-white cursor-not-allowed"
+                        : "bg-orange-600 text-white hover:bg-orange-700"
+                    }`}
+                  >
+                    {isCanceling ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Cancelando...
+                      </>
+                    ) : (
+                      "Sí, Cancelar"
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -979,6 +1136,36 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
   React.useEffect(() => {
     loadClients();
   }, []);
+
+  // Refrescar datos cuando cambia la vista
+  React.useEffect(() => {
+    const refreshData = async () => {
+      console.log(`🔄 Refrescando datos para la vista: ${currentView}`);
+      
+      // Refrescar bookings
+      try {
+        await refreshBookings();
+        console.log('✅ Bookings refrescados');
+      } catch (error) {
+        console.error('❌ Error refrescando bookings:', error);
+      }
+
+      // Refrescar clientes (especialmente importante para las vistas de clientes, stats, etc.)
+      if (currentView === 'clients' || currentView === 'stats' || currentView === 'history') {
+        try {
+          await loadClients();
+          console.log('✅ Clientes refrescados');
+        } catch (error) {
+          console.error('❌ Error refrescando clientes:', error);
+        }
+      }
+    };
+
+    // Solo refrescar si el componente ya está montado (evitar doble carga inicial)
+    if (currentView) {
+      refreshData();
+    }
+  }, [currentView]);
 
   // Polling para verificar sincronización con Google Calendar
   React.useEffect(() => {
@@ -1491,7 +1678,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                                                 <WhatsAppIconComponent className={`w-4 h-4 ${whatsappStatus.color}`} />
                                                 <span className="text-xs text-gray-500">
                                                   {whatsappStatus.status === 'synced' ? 'Enviado' : 
-                                                   whatsappStatus.status === 'not_synced' ? 'Pendiente' : 'Error'}
+                                                   whatsappStatus.status === 'not_synced' ? 'Pendiente' : 
+                                                   whatsappStatus.status === 'not_sent' ? 'No enviado' : 'Error'}
                                                 </span>
                                               </>
                                             );
@@ -2329,7 +2517,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = () => {
                                                 <WhatsAppIconComponent className={`w-4 h-4 ${whatsappStatus.color}`} />
                                                 <span className="text-xs text-gray-500">
                                                   {whatsappStatus.status === 'synced' ? 'Enviado' : 
-                                                   whatsappStatus.status === 'not_synced' ? 'Pendiente' : 'Error'}
+                                                   whatsappStatus.status === 'not_synced' ? 'Pendiente' : 
+                                                   whatsappStatus.status === 'not_sent' ? 'No enviado' : 'Error'}
                                                 </span>
                                               </>
                                             );

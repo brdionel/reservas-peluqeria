@@ -8,12 +8,14 @@ interface BookingFormProps {
   selectedDate: Date;
   selectedTime: string;
   onBookingSubmit: (data: BookingData) => Promise<void>;
+  onRefreshSlots?: () => Promise<void>;
 }
 
 export const BookingForm: React.FC<BookingFormProps> = ({
   selectedDate,
   selectedTime,
   onBookingSubmit,
+  onRefreshSlots,
 }) => {
   const { salonConfig } = useBookingData();
   const [formData, setFormData] = useState({
@@ -24,6 +26,8 @@ export const BookingForm: React.FC<BookingFormProps> = ({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [isRefreshingSlots, setIsRefreshingSlots] = useState(false);
+  const [isSlotOccupied, setIsSlotOccupied] = useState(false);
 
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {};
@@ -100,11 +104,39 @@ export const BookingForm: React.FC<BookingFormProps> = ({
 
       // Esperar a que termine el request antes de ocultar el loader
       await onBookingSubmit(bookingData);
+      // Si llegamos aquí, la reserva fue exitosa, limpiar errores
+      setIsSlotOccupied(false);
+      setErrors({});
     } catch (error) {
       console.error("Error submitting booking:", error);
-      setErrors({ submit: 'Error al crear la reserva. Por favor, intenta nuevamente.' });
+      const errorMessage = error instanceof Error ? error.message : 'Error al crear la reserva. Por favor, intenta nuevamente.';
+      
+      // Detectar si el error es por horario ocupado
+      if (errorMessage.includes('horario ya está ocupado') || errorMessage.includes('Este horario ya está ocupado')) {
+        setIsSlotOccupied(true);
+        setErrors({ submit: 'Este horario ya está ocupado. Por favor, actualiza los horarios disponibles o elige otro horario.' });
+      } else {
+        setIsSlotOccupied(false);
+        setErrors({ submit: errorMessage });
+      }
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleRefreshSlots = async () => {
+    if (!onRefreshSlots) return;
+    
+    setIsRefreshingSlots(true);
+    try {
+      await onRefreshSlots();
+      setIsSlotOccupied(false);
+      setErrors({});
+    } catch (error) {
+      console.error("Error refreshing slots:", error);
+      setErrors({ submit: 'Error al actualizar los horarios. Por favor, intenta nuevamente.' });
+    } finally {
+      setIsRefreshingSlots(false);
     }
   };
 
@@ -242,7 +274,27 @@ export const BookingForm: React.FC<BookingFormProps> = ({
 
         {errors.submit && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-red-800 text-sm">{errors.submit}</p>
+            <p className="text-red-800 text-sm mb-3">{errors.submit}</p>
+            {isSlotOccupied && onRefreshSlots && (
+              <button
+                type="button"
+                onClick={handleRefreshSlots}
+                disabled={isRefreshingSlots}
+                className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
+              >
+                {isRefreshingSlots ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Actualizando...
+                  </>
+                ) : (
+                  <>
+                    <Clock className="w-4 h-4" />
+                    Actualizar Horarios Disponibles
+                  </>
+                )}
+              </button>
+            )}
           </div>
         )}
 

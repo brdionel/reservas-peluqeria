@@ -8,6 +8,7 @@ interface ModalProps {
   children: React.ReactNode;
   type?: 'info' | 'warning' | 'success' | 'error';
   showCloseButton?: boolean;
+  preventClose?: boolean; // Prevenir cierre del modal (útil durante operaciones)
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -17,6 +18,7 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   type = 'info',
   showCloseButton = true,
+  preventClose = false,
 }) => {
   if (!isOpen) return null;
 
@@ -44,12 +46,18 @@ export const Modal: React.FC<ModalProps> = ({
     }
   };
 
+  const handleBackdropClick = () => {
+    if (!preventClose) {
+      onClose();
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={handleBackdropClick}
       />
       
       {/* Modal */}
@@ -62,8 +70,13 @@ export const Modal: React.FC<ModalProps> = ({
           </div>
           {showCloseButton && (
             <button
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              onClick={preventClose ? undefined : onClose}
+              disabled={preventClose}
+              className={`p-2 rounded-lg transition-colors ${
+                preventClose 
+                  ? "text-gray-300 cursor-not-allowed" 
+                  : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+              }`}
             >
               <X className="w-5 h-5" />
             </button>
@@ -102,26 +115,52 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   type = 'warning',
   isLoading = false,
 }) => {
+  // Debug: Log cuando cambia el estado de loading
+  React.useEffect(() => {
+    if (isLoading) {
+      console.log('🔄 ConfirmModal: isLoading cambió a true');
+    }
+  }, [isLoading]);
+
   const handleConfirm = () => {
     if (!isLoading) {
+      console.log('✅ ConfirmModal: handleConfirm llamado');
       onConfirm();
+    } else {
+      console.log('⚠️ ConfirmModal: handleConfirm bloqueado, isLoading es true');
+    }
+  };
+
+  const handleClose = () => {
+    if (!isLoading) {
+      onClose();
+    } else {
+      console.log('⚠️ ConfirmModal: handleClose bloqueado, isLoading es true');
     }
   };
 
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       title={title}
       type={type}
       showCloseButton={false}
+      preventClose={isLoading}
     >
       <div className="space-y-4">
         <p className="text-gray-600 leading-relaxed">{message}</p>
         
+        {isLoading && (
+          <div className="flex items-center justify-center gap-2 py-3 bg-orange-50 rounded-lg border border-orange-200">
+            <div className="w-5 h-5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+            <span className="text-sm font-medium text-orange-700">Cancelando turno...</span>
+          </div>
+        )}
+        
         <div className="flex gap-3 pt-4">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             disabled={isLoading}
             className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
               isLoading
@@ -145,7 +184,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
             {isLoading ? (
               <>
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                Procesando...
+                Cancelando...
               </>
             ) : (
               confirmText

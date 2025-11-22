@@ -300,9 +300,9 @@ router.post('/', bookingLimiter, validateRequest(createBookingSchema), async (re
       console.warn('⚠️ Reserva creada pero falló la sincronización con Google Calendar:', calendarResult.error);
     }
 
-    // Enviar WhatsApp de confirmación
+    // Enviar WhatsApp de confirmación solo si viene de la vista cliente
     let whatsappResult = { success: false, error: 'WhatsApp no configurado' };
-    if (whatsappService.isConfigured()) {
+    if (source === 'booking_form' && whatsappService.isConfigured()) {
       try {
         console.log('📱 Enviando WhatsApp de confirmación a:', client.phone);
         whatsappResult = await whatsappService.sendBookingConfirmation({
@@ -322,8 +322,31 @@ router.post('/', bookingLimiter, validateRequest(createBookingSchema), async (re
         console.error('❌ Error enviando WhatsApp:', error);
         whatsappResult = { success: false, error: error.message };
       }
+    } else if (source === 'booking_form' && !whatsappService.isConfigured()) {
+      console.log('ℹ️ WhatsApp no configurado, saltando envío de confirmación');
+      whatsappResult = { success: false, error: 'WhatsApp no configurado' };
     } else {
-      console.log('ℹ️ WhatsApp no configurado, saltando envío');
+      console.log('ℹ️ Booking creado desde admin panel, saltando envío de WhatsApp');
+    }
+
+    // Guardar estado de WhatsApp en la base de datos
+    if (whatsappResult.success || whatsappResult.error) {
+      const whatsappStatusData = {
+        success: whatsappResult.success,
+        messageId: whatsappResult.messageId || null,
+        provider: whatsappResult.provider || null,
+        sentAt: whatsappResult.success ? new Date().toISOString() : null,
+        error: whatsappResult.error || null
+      };
+
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: {
+          whatsappStatus: JSON.stringify(whatsappStatusData)
+        }
+      });
+
+      console.log('💾 Estado de WhatsApp guardado en base de datos');
     }
 
     res.status(201).json({

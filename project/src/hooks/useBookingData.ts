@@ -234,6 +234,19 @@ export const useBookingData = () => {
     });
   };
 
+  // Función para refrescar los bookings desde el backend
+  const refreshBookings = async (): Promise<void> => {
+    try {
+      const bookingsResponse = await bookingService.getBookings();
+      if (bookingsResponse.success && bookingsResponse.data) {
+        const migratedBookings = migrateExistingBookings(bookingsResponse.data as BookingData[]);
+        setBookings(migratedBookings);
+      }
+    } catch (error) {
+      console.error('Error refreshing bookings:', error);
+    }
+  };
+
   // Crear nueva reserva
   const createBooking = async (bookingData: BookingData): Promise<boolean> => {
     try {
@@ -290,12 +303,14 @@ export const useBookingData = () => {
         setBookings((prev) => [...prev, response.data as BookingData]);
         return true;
       } else {
-        console.error('Error al crear reserva en el backend:', response.error);
-        return false;
+        // Lanzar error con el mensaje específico del backend
+        const errorMessage = response.error || 'Error al crear la reserva';
+        throw new Error(errorMessage);
       }
     } catch (error) {
       console.error('Error al crear reserva:', error);
-      return false;
+      // Re-lanzar el error para que pueda ser manejado en el componente
+      throw error;
     }
   };
 
@@ -369,10 +384,24 @@ export const useBookingData = () => {
 
   // Función para migrar bookings existentes que no tienen status
   const migrateExistingBookings = (bookings: BookingData[]): BookingData[] => {
-    return bookings.map(booking => ({
-      ...booking,
-      status: booking.status || 'confirmed' as BookingStatus
-    }));
+    return bookings.map(booking => {
+      // Parsear whatsappStatus si viene como string JSON
+      let parsedWhatsAppStatus = booking.whatsappStatus;
+      if (booking.whatsappStatus && typeof booking.whatsappStatus === 'string') {
+        try {
+          parsedWhatsAppStatus = JSON.parse(booking.whatsappStatus);
+        } catch (e) {
+          // Si no es JSON válido, mantener como string (compatibilidad con formato antiguo)
+          parsedWhatsAppStatus = booking.whatsappStatus;
+        }
+      }
+
+      return {
+        ...booking,
+        status: booking.status || 'confirmed' as BookingStatus,
+        whatsappStatus: parsedWhatsAppStatus
+      };
+    });
   };
 
   return {
@@ -388,5 +417,6 @@ export const useBookingData = () => {
     getBookingsByDate,
     hasAvailability,
     updateSalonConfig,
+    refreshBookings,
   };
 };
